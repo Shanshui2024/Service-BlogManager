@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>写作工具</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  </head>
+  <body>
+    <!-- 全屏登录页：未登录时显示，登录后由 app.js 隐藏 -->
+    <div id="login-screen" class="login-screen hidden">
+      <div class="login-card">
+        <div class="login-brand">写作工具</div>
+        <p class="login-sub">使用 GitHub 登录后管理你的博客仓库。Token 安全存储在服务端会话中，登录后即可读写文章、标签与配置。</p>
+        <button id="btn-login-big" class="btn btn-solid btn-lg">使用 GitHub 登录</button>
+        <p class="login-foot">授权范围：<code>repo</code>。首次使用需在登录后于「仓库设置」填写 <code>owner/repo</code>。</p>
+      </div>
+    </div>
+
+    <header class="topbar">
+      <div class="brand">写作工具</div>
+      <div class="top-actions">
+        <span id="repo-badge" class="repo-badge hidden"></span>
+        <button id="btn-settings" class="btn btn-sm hidden">仓库设置</button>
+        <button id="btn-login" class="btn btn-sm hidden">使用 GitHub 登录</button>
+        <button id="btn-logout" class="btn btn-sm hidden">退出 (GitHub)</button>
+        <span id="status" class="status"></span>
+        <button id="btn-new" class="btn btn-solid hidden">+ 新建文章</button>
+      </div>
+    </header>
+
+    <div id="toast-box" class="toast-box"></div>
+
+    <!-- Repo settings (owner/repo + branch). Stored in localStorage. -->
+    <div id="settings-modal" class="modal hidden">
+      <div class="modal-box">
+        <div class="modal-head">
+          <h3>仓库设置</h3>
+          <button id="settings-close" class="btn btn-ghost">✕</button>
+        </div>
+        <div class="editor-form">
+          <label class="field">
+            <span>仓库 (owner/repo) *</span>
+            <input id="s-repo" class="input" placeholder="Shanshui2024/Site-BlogRepo" />
+          </label>
+          <label class="field">
+            <span>分支</span>
+            <input id="s-branch" class="input" placeholder="main" />
+          </label>
+          <label class="field">
+            <span>仓库内博客根目录 (可空，留空=仓库根)</span>
+            <input id="s-root" class="input" placeholder="" />
+          </label>
+          <p class="hint">例：博客在仓库根的 <code>data/posts/</code> 下，根目录留空。保存后需用 GitHub 登录才能读写。</p>
+        </div>
+        <div class="modal-foot">
+          <span id="settings-status" class="status"></span>
+          <button id="btn-save-settings" class="btn btn-solid">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="layout">
+      <nav class="sidebar">
+        <button class="nav-item active" data-view="posts">文章</button>
+        <button class="nav-item" data-view="tags">标签</button>
+        <button class="nav-item" data-view="categories">分类</button>
+        <button class="nav-item" data-view="config">配置</button>
+      </nav>
+
+      <main class="content">
+        <section id="view-posts" class="view active">
+          <div class="view-head">
+            <h2>文章</h2>
+            <input id="post-search" class="input" placeholder="搜索标题 / 标签" />
+          </div>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>标题</th>
+                <th>分类</th>
+                <th>标签</th>
+                <th>日期</th>
+                <th>状态</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="posts-body"></tbody>
+          </table>
+        </section>
+
+        <section id="view-tags" class="view">
+          <div class="view-head">
+            <h2>标签</h2>
+            <div class="custom-select" id="tag-select">
+              <button type="button" class="cs-trigger input" data-cs="tag-select">选择标签…</button>
+              <div class="cs-panel hidden"></div>
+            </div>
+          </div>
+          <p class="hint">点击标签可查看该标签下的文章；在编辑器中也可通过中文搜索添加标签。</p>
+          <div id="tags-cloud" class="chips"></div>
+          <div id="tags-posts" class="tags-posts hidden"></div>
+          <h3 class="sec">标签颜色</h3>
+          <p class="hint">点击色块可打开系统取色器；右侧可手动输入十六进制颜色值，二者自动同步。修改后即时保存。</p>
+          <div id="tag-colors" class="color-list"></div>
+        </section>
+
+        <section id="view-categories" class="view">
+          <div class="view-head"><h2>分类</h2></div>
+          <div id="categories-list" class="cat-list"></div>
+          <h3 class="sec">分类颜色</h3>
+          <p class="hint">点击色块可打开系统取色器；右侧可手动输入十六进制颜色值，二者自动同步。修改后即时保存。</p>
+          <div class="color-toolbar">
+            <div class="custom-select" id="cat-select">
+              <button type="button" class="cs-trigger input" data-cs="cat-select">选择分类…</button>
+              <div class="cs-panel hidden"></div>
+            </div>
+            <span class="hint" style="margin:0">选择分类可快速定位到下方对应行</span>
+          </div>
+          <div id="category-colors" class="color-list"></div>
+        </section>
+
+        <section id="view-config" class="view">
+          <div class="view-head"><h2>站点配置 (config.yml)</h2></div>
+          <form id="config-form" class="form"></form>
+          <div class="form-actions">
+            <button type="button" id="btn-save-config" class="btn btn-solid">保存配置</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="editor-modal" class="modal hidden">
+      <div class="modal-box">
+        <div class="modal-head">
+          <h3 id="editor-title">新建文章</h3>
+          <button id="editor-close" class="btn btn-ghost">✕</button>
+        </div>
+        <div class="editor-grid">
+          <div class="editor-form">
+            <label class="field">
+              <span>标题 *</span>
+              <input id="f-title" class="input" placeholder="文章标题" />
+            </label>
+            <div class="field-row">
+              <label class="field">
+                <span>日期</span>
+                <input id="f-date" class="input" type="datetime-local" />
+              </label>
+              <label class="field">
+                <span>分类</span>
+                <div class="custom-select" id="f-category-select">
+                  <button type="button" class="cs-trigger input" data-cs="f-category-select">选择分类…</button>
+                  <div class="cs-panel hidden"></div>
+                </div>
+              </label>
+            </div>
+            <label class="field">
+              <span>URL 文件名 (slug)</span>
+              <div class="slug-row">
+                <input id="f-slug" class="input" placeholder="english-slug" />
+                <button type="button" id="btn-slug-from-title" class="btn">从标题生成</button>
+              </div>
+              <span class="field-hint">保存在 data/posts/ 下，可含子目录，如 tutorial/my-post</span>
+            </label>
+            <label class="field">
+              <span>标签（输入后回车添加；支持中文搜索）</span>
+              <input id="f-tag-input" class="input" placeholder="输入标签后回车，或搜索" />
+              <div id="tag-suggest" class="suggest hidden"></div>
+              <div id="f-tags" class="chips"></div>
+            </label>
+            <label class="field">
+              <span>摘要 (excerpt)</span>
+              <textarea id="f-excerpt" class="input textarea-sm" rows="2"></textarea>
+            </label>
+            <div class="field-row toggles">
+              <label class="toggle toggle-left"><span class="switch"><input id="f-draft" type="checkbox" /><span class="track"></span><span class="thumb"></span></span><span class="t-label">草稿</span></label>
+              <label class="toggle toggle-left"><span class="switch"><input id="f-pinned" type="checkbox" /><span class="track"></span><span class="thumb"></span></span><span class="t-label">置顶</span></label>
+            </div>
+          </div>
+          <div class="editor-body">
+            <div class="pane">
+              <div class="pane-head">正文 (Markdown / MDX)</div>
+              <textarea id="f-content" class="content-area" placeholder="在此书写正文"></textarea>
+            </div>
+            <div class="pane">
+              <div class="pane-head">预览</div>
+              <div id="preview" class="preview"></div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <span id="editor-status" class="status"></span>
+          <div>
+            <button id="btn-delete" class="btn btn-danger hidden">删除</button>
+            <button id="btn-save" class="btn btn-solid">保存</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/js/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,21 @@
+# BlogManager Docker Compose — put this on your server at /opt/blogmanager/
+# Run: docker compose up -d
+
+services:
+  blogmanager:
+    image: ghcr.io/shanshui2024/service-blogmanager:latest
+    container_name: blogmanager
+    restart: unless-stopped
+    ports:
+      - "${PORT:-4321}:3000"
+    environment:
+      - GH_CLIENT_ID=${GH_CLIENT_ID}
+      - GH_CLIENT_SECRET=${GH_CLIENT_SECRET}
+      - BASE_URL=${BASE_URL}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - NODE_ENV=production
+    volumes:
+      - blogmanager_sessions:/app/.sessions
+
+volumes:
+  blogmanager_sessions:
