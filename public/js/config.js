@@ -10,6 +10,12 @@ export async function loadConfig() {
   return { raw: data.raw, parsed: data.parsed };
 }
 
+/** Fetch and return parsed config for the settings page */
+export async function getConfigStructured() {
+  const { parsed } = await loadConfig();
+  return parsed;
+}
+
 /** Save config.yml to the backend */
 export async function writeConfig(content) {
   return saveConfig(content);
