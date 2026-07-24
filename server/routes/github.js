@@ -11,12 +11,17 @@ export function createGitHubProxy() {
       return res.status(401).json({ error: "Not authenticated" });
     }
 
-    // Build target URL: proxy all GitHub API requests
-    const apiPath = req.path;
-    const targetUrl = new URL(apiPath, "https://api.github.com/");
-    if (req.url.includes("?")) {
-      targetUrl.search = req.url.split("?")[1] || "";
+    // Frontend sends the GitHub API path via the x-gh-path header
+    // (e.g. /repos/owner/repo/contents/data/posts?ref=main)
+    const rawPath = req.headers["x-gh-path"] || req.path;
+    const apiPath = Array.isArray(rawPath) ? rawPath[0] : String(rawPath);
+
+    if (!apiPath || apiPath === "/") {
+      return res.status(400).json({ error: "Missing GitHub API path" });
     }
+
+    // new URL() will correctly parse query strings embedded in the path
+    const targetUrl = new URL(apiPath, "https://api.github.com/");
 
     try {
       const headers = {
