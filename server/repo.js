@@ -41,16 +41,11 @@ class RepoManager {
 
     if (alreadyCloned) {
       const git = simpleGit(dir);
-      // Fetch latest, reset to remote state, then checkout branch
-      try {
-        await git.fetch(tokenUrl, branch);
-      } catch {
-        // fetch failed — maybe the token is new or branch isn't tracked.
-        // add a remote fetch refspec and retry
-      }
+      // Update remote URL with fresh token, then fetch latest
+      await git.remote(['set-url', 'origin', tokenUrl]);
+      await git.fetch('origin', branch);
       await git.checkout(branch);
       await git.reset(['--hard', `origin/${branch}`]);
-      await git.pull(tokenUrl, branch, { '--rebase': 'false' });
       this._repos.set(key, { dir, branch });
     } else {
       await fs.mkdir(REPOS_DIR, { recursive: true });
@@ -145,19 +140,23 @@ class RepoManager {
     await fs.rm(fullPath, { force: true });
 
     const git = simpleGit(dir);
+    const tokenUrl = `https://x-access-token:${token}@github.com/${owner}/${repo}.git`;
+    await git.remote(['set-url', 'origin', tokenUrl]);
     try {
       await git.add(filePath); // stage the deletion
       await git.commit(message);
     } catch {
       // If no changes to commit, that's ok — continue to push anyway
     }
-    const tokenUrl = `https://x-access-token:${token}@github.com/${owner}/${repo}.git`;
-    await git.push(tokenUrl, branch);
+    await git.push('origin', branch);
   }
 
   async _commitAndPush(dir, branch, owner, repo, token, filePath, message) {
     const git = simpleGit(dir);
     const tokenUrl = `https://x-access-token:${token}@github.com/${owner}/${repo}.git`;
+
+    // Update remote URL with fresh token
+    await git.remote(['set-url', 'origin', tokenUrl]);
 
     // Set commit author (harmless to call repeatedly)
     await git.addConfig('user.email', GIT_EMAIL);
@@ -170,7 +169,7 @@ class RepoManager {
       // If nothing to commit, skip the push
       return;
     }
-    await git.push(tokenUrl, branch);
+    await git.push('origin', branch);
   }
 
   /** Search files using a simple text search (no GitHub search API dependency) */
