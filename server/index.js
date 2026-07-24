@@ -40,7 +40,11 @@ app.use(
 app.use(express.json({ limit: '2mb' }));
 
 // ---- Auth routes ----
-app.use('/api/auth', createAuthRouter({ baseUrl: BASE_URL }));
+app.use('/api/auth', createAuthRouter({
+  ghClientId: process.env.GH_CLIENT_ID,
+  ghClientSecret: process.env.GH_CLIENT_SECRET,
+  baseUrl: BASE_URL,
+}));
 
 // ---- Blog management API (local git + filesystem) ----
 app.use('/api', createApiRouter());

@@ -1,7 +1,7 @@
 // server/auth.js — GitHub OAuth server-side handlers (ESM)
 import { Router } from "express";
 
-export function createAuthRoutes({ ghClientId, ghClientSecret, baseUrl }) {
+export function createAuthRouter({ ghClientId, ghClientSecret, baseUrl }) {
   const router = Router();
 
   // GET /api/auth/login — redirect to GitHub OAuth
