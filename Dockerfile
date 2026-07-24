@@ -1,6 +1,9 @@
-# Build stage — nothing to build for this simple Express static server,
-# but we use multi-stage to keep the final image clean.
+# Build stage
 FROM node:20-slim AS base
+
+# Install git (required for local repo clone + push)
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Install production dependencies
@@ -13,6 +16,10 @@ COPY public/ ./public/
 
 # Runtime stage
 FROM node:20-slim
+
+# Install git in runtime stage too
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Create non-root user
@@ -25,8 +32,8 @@ COPY --from=base /app/server ./server
 COPY --from=base /app/public ./public
 COPY package.json ./
 
-# Session store directory
-RUN mkdir -p .sessions && chown -R app:app .sessions
+# Directories for sessions and local repo clones
+RUN mkdir -p .sessions .repos && chown -R app:app .sessions .repos
 
 USER app
 

@@ -15,7 +15,7 @@ import {
   loadCategories,
 } from "./posts.js";
 import { loadConfig, saveConfig, getAllTags, getAllCategories } from "./config.js";
-import { listPosts, deleteFile } from "./github.js";
+import { deletePost as apiDeletePost, setupRepo } from "./api.js";
 
 const $ = (id) => document.getElementById(id);
 function show(id, on) {
@@ -124,15 +124,7 @@ function bind() {
       const slug = t.dataset.delete;
       (async () => {
         try {
-          const list = await listPosts();
-          const item = list.find((x) => x.slug === slug);
-          if (!item) { toast("未找到该文件", "err"); return; }
-          const ext = item.path.endsWith(".mdx") ? "mdx" : "md";
-          await deleteFile(
-            `${getRoot()}/${slug}.${ext}`,
-            item.sha,
-            `delete ${slug}`
-          );
+          await apiDeletePost(slug);
           toast("已删除", "ok");
           loadPosts();
         } catch (err) {
@@ -233,6 +225,14 @@ async function boot() {
   if (params.has("error")) {
     toast("登录失败：" + params.get("error"), "err");
     history.replaceState(null, "", location.pathname + location.hash);
+  }
+
+  if (state.authed) {
+    try {
+      await setupRepo();
+    } catch (e) {
+      toast("仓库初始化失败：" + e.message, "err");
+    }
   }
 
   updateUI();

@@ -1,6 +1,6 @@
 // posts.js — article listing, editor, save/delete/copy, tags & categories.
-import { readFile, writeFile, deleteFile, getAllPosts, listPosts } from "./github.js";
-import { state, getRoot } from "./storage.js";
+import { getPost, savePost as apiSavePost, deletePost as apiDeletePost, getPosts } from "./api.js";
+import { state } from "./storage.js";
 import {
   toast,
   esc,
@@ -36,7 +36,6 @@ function resetForm() {
   const tags = $("f-tags");
   if (tags) tags.innerHTML = "";
   state.editingSlug = null;
-  state.editingSha = null;
   setEditorStatus("");
   const titleEl = $("f-title");
   if (titleEl) titleEl.readOnly = false;
@@ -98,24 +97,14 @@ async function openEditor(slug) {
   resetForm();
   state.editingSlug = slug || null;
   if (slug) {
-    const list = await listPosts();
-    const item = list.find((x) => x.slug === slug);
-    state.editingSha = item ? item.sha : null;
-    let raw = null;
-    for (const e of ["mdx", "md"]) {
-      try {
-        const r = await readFile(`${getRoot()}/${slug}.${e}`);
-        if (r) {
-          raw = r;
-          break;
-        }
-      } catch {}
-    }
-    if (!raw) {
-      toast("读取文章失败", "err");
+    let result;
+    try {
+      result = await getPost(slug);
+    } catch (e) {
+      toast("读取文章失败：" + e.message, "err");
       return;
     }
-    const p = parsePostFileLocal(raw);
+    const p = parsePostFileLocal(result.raw);
     $("f-title").value = p.title;
     $("f-date").value = dateToInput(p.date);
     $("f-excerpt").value = p.excerpt || "";
@@ -190,19 +179,8 @@ async function savePost() {
     return;
   }
   try {
-    const existing = (await listPosts()).find((x) => x.slug === form.slug);
-    const sha = existing ? existing.sha : null;
-    const ext = existing
-      ? existing.path.endsWith(".mdx")
-        ? "mdx"
-        : "md"
-      : "mdx";
-    await writeFile(
-      `${getRoot()}/${form.slug}.${ext}`,
-      form.yaml,
-      sha || undefined,
-      `update ${form.slug}`
-    );
+    const isNew = !state.editingSlug;
+    await apiSavePost(form.slug, form.yaml, isNew);
     toast("已保存", "ok");
     closeEditor();
     loadPosts();
@@ -215,19 +193,7 @@ async function deletePost() {
   if (!state.editingSlug) return;
   if (!confirm("确定删除这篇文章？")) return;
   try {
-    const existing = (await listPosts()).find(
-      (x) => x.slug === state.editingSlug
-    );
-    if (!existing) {
-      toast("未找到该文件", "err");
-      return;
-    }
-    const ext = existing.path.endsWith(".mdx") ? "mdx" : "md";
-    await deleteFile(
-      `${getRoot()}/${state.editingSlug}.${ext}`,
-      existing.sha,
-      `delete ${state.editingSlug}`
-    );
+    await apiDeletePost(state.editingSlug);
     toast("已删除", "ok");
     closeEditor();
     loadPosts();
@@ -238,21 +204,8 @@ async function deletePost() {
 
 async function copyPost(slug) {
   try {
-    let raw = null;
-    for (const e of ["mdx", "md"]) {
-      try {
-        const r = await readFile(`${getRoot()}/${slug}.${e}`);
-        if (r) {
-          raw = r;
-          break;
-        }
-      } catch {}
-    }
-    if (!raw) {
-      toast("读取失败", "err");
-      return;
-    }
-    const p = parsePostFileLocal(raw);
+    const result = await getPost(slug);
+    const p = parsePostFileLocal(result.raw);
     navigator.clipboard
       .writeText(p.content || "")
       .then(
@@ -268,7 +221,7 @@ async function loadPosts() {
   const tbody = $("posts-body");
   if (tbody) tbody.innerHTML = renderSkeleton();
   try {
-    const posts = await getAllPosts();
+    const posts = await getPosts();
     state.allPosts = posts;
     renderPosts(posts);
     await loadTagCloud();

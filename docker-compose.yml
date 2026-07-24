@@ -16,6 +16,8 @@ services:
       - NODE_ENV=production
     volumes:
       - blogmanager_sessions:/app/.sessions
+      - blogmanager_repos:/app/.repos
 
 volumes:
   blogmanager_sessions:
+  blogmanager_repos:
