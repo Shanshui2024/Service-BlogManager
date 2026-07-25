@@ -496,7 +496,30 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 }
 .config-editor:focus { border-color: var(--mono-text); }
 
-/* ─── Settings Form ─── */
+.config-section {
+  margin-top: 24px;
+  background: var(--mono-surface);
+  border: 1px solid var(--mono-border-light);
+  padding: 20px;
+}
+
+.color-add-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.color-table {
+  table-layout: auto;
+  margin-top: 0;
+}
+
+.color-table td {
+  padding: 6px 8px;
+}
+
+/* ─── Site Config ─── */
 .settings-form {
   max-width: 520px;
   background: var(--mono-surface);

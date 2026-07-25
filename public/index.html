@@ -184,6 +184,33 @@
           </div>
           <div id="config-loading" class="loading-spinner">加载中...</div>
           <textarea id="config-editor" class="config-editor hidden" spellcheck="false"></textarea>
+
+          <!-- Tag / Category Colors -->
+          <div class="config-section">
+            <h3 class="settings-section-title">标签颜色</h3>
+            <p class="form-hint">为标签设置颜色，修改后自动保存并标记为待提交。</p>
+            <div class="color-add-row">
+              <input type="text" id="site-tag-new" class="input" placeholder="添加标签名..." style="flex:1; max-width:200px;">
+              <button class="btn btn-ghost" onclick="addColorItem('tag')">+ 添加</button>
+            </div>
+            <table class="table color-table">
+              <thead><tr><th>标签名</th><th>颜色</th><th>预览</th><th></th></tr></thead>
+              <tbody id="site-tags-list"></tbody>
+            </table>
+          </div>
+
+          <div class="config-section" style="margin-top:24px;">
+            <h3 class="settings-section-title">分类颜色</h3>
+            <p class="form-hint">为分类设置颜色，修改后自动保存并标记为待提交。</p>
+            <div class="color-add-row">
+              <input type="text" id="site-category-new" class="input" placeholder="添加分类名..." style="flex:1; max-width:200px;">
+              <button class="btn btn-ghost" onclick="addColorItem('category')">+ 添加</button>
+            </div>
+            <table class="table color-table">
+              <thead><tr><th>分类名</th><th>颜色</th><th>预览</th><th></th></tr></thead>
+              <tbody id="site-categories-list"></tbody>
+            </table>
+          </div>
         </div>
 
         <!-- Settings View -->

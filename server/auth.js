@@ -147,7 +147,9 @@ async function refreshArcToken(req) {
       };
       return true;
     }
-  } catch { /* ignore */ }
+  } catch (err) {
+    console.error('[Auth] Token refresh failed:', err.message);
+  }
 
   return false;
 }
@@ -190,7 +192,9 @@ router.post('/logout', async (req, res) => {
           token,
         }),
       });
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.error('[Auth] Logout revocation failed:', err.message);
+    }
   }
 
   req.session.destroy((err) => {
@@ -215,7 +219,7 @@ router.get('/github/login', authGuard, (req, res) => {
   const params = new URLSearchParams({
     client_id: process.env.GITHUB_CLIENT_ID,
     redirect_uri: `${process.env.BASE_URL}/api/auth/github/callback`,
-    scope: 'repo',
+    scope: 'repo user:email',
     state,
   });
 
@@ -263,8 +267,9 @@ router.get('/github/callback', async (req, res) => {
       return res.redirect(`/?error=${encodeURIComponent(data.error_description || data.error)}&tab=settings`);
     }
 
-    // Fetch GitHub user info for display
+    // Fetch GitHub user info for display & git config
     let githubUser = null;
+    let githubEmail = null;
     try {
       const userResp = await fetch('https://api.github.com/user', {
         headers: {
@@ -273,10 +278,28 @@ router.get('/github/callback', async (req, res) => {
         },
       });
       githubUser = await userResp.json();
-    } catch { /* ignore */ }
+
+      // Fetch primary email for git commits
+      if (githubUser?.login) {
+        const emailResp = await fetch('https://api.github.com/user/emails', {
+          headers: {
+            Authorization: `Bearer ${data.access_token}`,
+            Accept: 'application/vnd.github+json',
+          },
+        });
+        const emails = await emailResp.json();
+        if (Array.isArray(emails)) {
+          const primary = emails.find(e => e.primary && e.verified) || emails.find(e => e.verified) || emails[0];
+          githubEmail = primary?.email || null;
+        }
+      }
+    } catch (userErr) {
+      console.error('[GitHub OAuth] Failed to fetch user info:', userErr);
+    }
 
     req.session.githubToken = data.access_token;
     req.session.githubUser = githubUser?.login || null;
+    req.session.githubEmail = githubEmail || `${githubUser?.login}@users.noreply.github.com`;
 
     req.session.save(() => {
       res.redirect('/?tab=settings&github=connected');
@@ -292,6 +315,7 @@ router.get('/github/status', authGuard, (req, res) => {
   res.json({
     connected: !!req.session.githubToken,
     user: req.session.githubUser || null,
+    email: req.session.githubEmail || null,
   });
 });
 
@@ -299,6 +323,7 @@ router.get('/github/status', authGuard, (req, res) => {
 router.post('/github/disconnect', authGuard, (req, res) => {
   delete req.session.githubToken;
   delete req.session.githubUser;
+  delete req.session.githubEmail;
   res.json({ success: true });
 });
 

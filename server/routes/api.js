@@ -60,7 +60,9 @@ router.post('/repo/setup', requireAuth, async (req, res) => {
     }
 
     const repo = getRepo(req);
-    const result = await repo.setup(gitToken, owner, repoName, branch);
+    const gitUser = useOAuth ? (req.session.githubUser || owner) : null;
+    const gitEmail = useOAuth ? (req.session.githubEmail || `${owner}@users.noreply.github.com`) : null;
+    const result = await repo.setup(gitToken, owner, repoName, branch, gitUser, gitEmail);
 
     req.session.repoConfig = {
       token: useOAuth ? null : gitToken, // null when OAuth, token stored in session
@@ -73,7 +75,7 @@ router.post('/repo/setup', requireAuth, async (req, res) => {
 
     res.json({ success: true, ...result });
   } catch (err) {
-    console.error('Repo setup error:', err);
+    console.error('[RepoSetup] Error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -98,6 +100,7 @@ router.get('/repo/status', requireAuth, requireRepo, async (req, res) => {
       modifiedFiles: modified,
     });
   } catch (err) {
+    console.error('[RepoStatus] Error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -133,7 +136,8 @@ router.get('/posts', requireAuth, requireRepo, async (req, res) => {
           pinned: data.pinned || false,
           wordCount: body ? body.split(/\s+/).length : 0,
         });
-      } catch {
+      } catch (parseErr) {
+        console.error(`[Posts] Failed to parse ${file}:`, parseErr.message);
         posts.push({
           slug: file.replace(/\.(md|mdx)$/, ''),
           path: file,
@@ -160,7 +164,7 @@ router.get('/posts', requireAuth, requireRepo, async (req, res) => {
 
     res.json(posts);
   } catch (err) {
-    console.error('List posts error:', err);
+    console.error('[Posts] List error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -194,6 +198,7 @@ router.get('/posts/:slug', requireAuth, requireRepo, async (req, res) => {
       raw: content,
     });
   } catch (err) {
+    console.error('[PostRead] Error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -239,7 +244,7 @@ router.put('/posts/:slug', requireAuth, requireRepo, async (req, res) => {
       path: filePath,
     });
   } catch (err) {
-    console.error('Save post error:', err);
+    console.error('[PostSave] Error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -262,6 +267,7 @@ router.delete('/posts/:slug', requireAuth, requireRepo, async (req, res) => {
 
     res.json({ success: true, slug });
   } catch (err) {
+    console.error('[PostDelete] Error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -276,18 +282,21 @@ router.get('/config', requireAuth, requireRepo, async (req, res) => {
 
     const content = await repo.readFile(root, 'config.yml');
     if (!content) {
-      return res.status(404).json({ error: 'config.yml not found' });
+      console.log('[Config] config.yml not found, returning empty defaults');
+      return res.json({ raw: '', parsed: null, notFound: true });
     }
 
     let parsed;
     try {
       parsed = yaml.load(content);
-    } catch {
+    } catch (yamlErr) {
+      console.error('[Config] YAML parse error:', yamlErr.message);
       parsed = null;
     }
 
     res.json({ raw: content, parsed });
   } catch (err) {
+    console.error('[Config] Read error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -307,6 +316,49 @@ router.put('/config', requireAuth, requireRepo, async (req, res) => {
 
     res.json({ success: true });
   } catch (err) {
+    console.error('[Config] Write error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Site Config (tags/categories colors) ───────────────────
+
+// GET /api/site-config — read site-config.json with colors
+router.get('/site-config', requireAuth, requireRepo, async (req, res) => {
+  try {
+    const repo = getRepo(req);
+    const root = getRoot(req);
+    const raw = await repo.readFile(root, 'site-config.json');
+    if (!raw) {
+      console.log('[SiteConfig] site-config.json not found, returning defaults');
+      return res.json({ tags: {}, categories: {} });
+    }
+    const config = JSON.parse(raw);
+    res.json(config);
+  } catch (err) {
+    console.error('[SiteConfig] Read error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/site-config — save site-config.json (triggers commit)
+router.put('/site-config', requireAuth, requireRepo, async (req, res) => {
+  try {
+    const repo = getRepo(req);
+    const root = getRoot(req);
+    const { tags, categories } = req.body;
+
+    const config = {
+      tags: tags || {},
+      categories: categories || {},
+    };
+
+    await repo.writeFile(root, 'site-config.json', JSON.stringify(config, null, 2));
+    console.log('[SiteConfig] Saved:', JSON.stringify(config));
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[SiteConfig] Write error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -344,11 +396,15 @@ router.get('/search', requireAuth, requireRepo, async (req, res) => {
             excerpt: data.excerpt || '',
           });
         }
-      } catch { /* skip broken files */ }
+      } catch (searchErr) {
+        console.error(`[Search] Failed to parse ${file}:`, searchErr.message);
+        /* skip broken files */
+      }
     }
 
     res.json(results);
   } catch (err) {
+    console.error('[Search] Error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -363,7 +419,7 @@ router.post('/commit', requireAuth, requireRepo, async (req, res) => {
 
     res.json(result);
   } catch (err) {
-    console.error('Commit error:', err);
+    console.error('[Commit] Error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -400,7 +456,10 @@ router.get('/aggregate', requireAuth, requireRepo, async (req, res) => {
         for (const c of cats) {
           if (c) categoriesMap.set(c, (categoriesMap.get(c) || 0) + 1);
         }
-      } catch { /* skip */ }
+      } catch (aggErr) {
+        console.error(`[Aggregate] Failed to parse ${file}:`, aggErr.message);
+        /* skip */
+      }
     }
 
     res.json({
@@ -412,6 +471,7 @@ router.get('/aggregate', requireAuth, requireRepo, async (req, res) => {
         .sort((a, b) => b.count - a.count),
     });
   } catch (err) {
+    console.error('[Aggregate] Error:', err);
     res.status(500).json({ error: err.message });
   }
 });

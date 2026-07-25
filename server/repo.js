@@ -21,8 +21,10 @@ export class RepoManager {
    * @param {string} owner - Repo owner
    * @param {string} repo - Repo name
    * @param {string} [branch='main'] - Branch name
+   * @param {string} [gitUser] - Git commit author name
+   * @param {string} [gitEmail] - Git commit author email
    */
-  async setup(token, owner, repo, branch = 'main') {
+  async setup(token, owner, repo, branch = 'main', gitUser, gitEmail) {
     const dirName = `${owner}_${repo}`;
     this.repoPath = path.join(REPOS_DIR, dirName);
     this.owner = owner;
@@ -45,8 +47,11 @@ export class RepoManager {
     }
 
     // Configure git user for commits
-    await this.git.addConfig('user.name', 'BlogManager', false, 'local');
-    await this.git.addConfig('user.email', 'blogmanager@shanshui.site', false, 'local');
+    const authorName = gitUser || 'BlogManager';
+    const authorEmail = gitEmail || 'blogmanager@shanshui.site';
+    await this.git.addConfig('user.name', authorName, false, 'local');
+    await this.git.addConfig('user.email', authorEmail, false, 'local');
+    console.log(`[Repo] Git author configured: ${authorName} <${authorEmail}>`);
 
     this.modifiedFiles.clear();
 
@@ -133,7 +138,8 @@ export class RepoManager {
     const full = this.resolvePath(root, filePath);
     try {
       return await fs.readFile(full, 'utf-8');
-    } catch {
+    } catch (err) {
+      console.error(`[Repo] readFile failed: ${full} — ${err.message}`);
       return null;
     }
   }
@@ -158,7 +164,8 @@ export class RepoManager {
       await fs.unlink(full);
       this.modifiedFiles.add(filePath);
       return true;
-    } catch {
+    } catch (err) {
+      console.error(`[Repo] deleteFile failed: ${full} — ${err.message}`);
       return false;
     }
   }

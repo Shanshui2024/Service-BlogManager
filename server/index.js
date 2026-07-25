@@ -53,3 +53,14 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`BlogManager running on port ${PORT}`);
 });
+
+// ─── Global Error Handlers ──────────────────────────────────
+
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught exception:', err);
+  // Keep the process alive for debugging, but log loudly
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[FATAL] Unhandled rejection:', reason);
+});
