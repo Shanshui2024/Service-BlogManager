@@ -1,243 +1,302 @@
-// app.js — entry point: wires DOM events and boots the app.
-import { state, getRepo, getBranch, getRoot, REPO_KEY, BRANCH_KEY, ROOT_KEY } from "./storage.js";
-import { startLogin, logout, checkAuth } from "./auth.js";
-import { toast, esc, slugifyTitle, updatePreview } from "./ui.js";
-import {
-  loadPosts,
-  openEditor,
-  savePost,
-  deletePost,
-  copyPost,
-  loadTagCloud,
-  loadTagPosts,
-  tagSuggest,
-  addTag,
-  loadCategories,
-} from "./posts.js";
-import { loadConfig, saveConfig, getAllTags, getAllCategories } from "./config.js";
-import { deletePost as apiDeletePost, setupRepo } from "./api.js";
+// app.js — Application entry point and UI orchestration
 
-const $ = (id) => document.getElementById(id);
-function show(id, on) {
-  const e = $(id);
-  if (e) e.classList.toggle("hidden", !on);
+const App = {
+  async boot() {
+    bindEvents();
+    setupTagInput();
+
+    // Check URL for error
+    const params = new URLSearchParams(window.location.search);
+    const error = params.get('error');
+    if (error) {
+      document.getElementById('login-error').textContent = decodeURIComponent(error);
+    }
+
+    // Check auth status
+    const authed = await checkAuth();
+    if (authed) {
+      updateUI();
+      await initRepo();
+    } else {
+      showLogin();
+    }
+  },
+
+  startLogin() {
+    startLogin();
+  },
+};
+
+// ─── UI State ───
+
+function showLogin() {
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('app').classList.add('hidden');
 }
-function openModal(id) {
-  show(id, true);
-}
-function closeModal(id) {
-  show(id, false);
+
+function showApp() {
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
 }
 
 function updateUI() {
-  const authed = state.authed;
-  show("login-screen", !authed);
-  ["btn-settings", "btn-login", "btn-logout", "btn-new"].forEach((id) =>
-    show(id, authed)
-  );
-  const badge = $("repo-badge");
-  if (badge) {
-    badge.textContent = authed ? `已连接 GitHub${state.ghUser ? " · " + state.ghUser : ""}` : "";
-    show("repo-badge", authed);
+  showApp();
+
+  // User info
+  if (state.arcUser) {
+    document.getElementById('user-name').textContent = state.arcUser.username || 'User';
+    if (state.arcUser.avatarUrl) {
+      document.getElementById('user-avatar').src = state.arcUser.avatarUrl;
+    }
   }
-  if (authed) {
-    const view =
-      document.querySelector(".nav-item.active")?.dataset.view || "posts";
-    if (view === "posts") loadPosts();
-    else if (view === "tags") loadTagCloud();
-    else if (view === "categories") loadCategories();
-    else if (view === "config") loadConfig();
+
+  updateThemeIcons();
+
+  // Repo indicator
+  updateRepoIndicator();
+
+  // Navigate to default view
+  navigateTo('posts');
+  loadPosts();
+  updateSuggestions();
+}
+
+function updateRepoIndicator() {
+  const indicator = document.getElementById('repo-indicator');
+  const label = document.getElementById('repo-label');
+  if (state.repoConfigured) {
+    indicator.classList.add('connected');
+    label.textContent = `${state.repoOwner}/${state.repoName}`;
+  } else {
+    indicator.classList.remove('connected');
+    label.textContent = '未配置';
   }
 }
 
-function openSettings() {
-  $("s-repo").value = getRepo();
-  $("s-branch").value = getBranch();
-  $("s-root").value = getRoot();
+// ─── Repo Initialization ───
+
+async function initRepo() {
+  try {
+    const status = await getRepoStatus();
+    if (status.configured) {
+      state.repoConfigured = true;
+      state.repoOwner = status.config.owner;
+      state.repoName = status.config.repo;
+      state.repoBranch = status.config.branch;
+      state.repoRoot = status.config.root;
+      updateRepoIndicator();
+      updateCommitIndicator();
+    }
+  } catch {
+    // Repo not configured yet — that's fine
+    state.repoConfigured = false;
+  }
 }
 
-function saveSettings() {
-  const repo = $("s-repo").value.trim();
-  const branch = $("s-branch").value.trim();
-  const root = $("s-root").value.trim();
-  if (!repo) {
-    $("settings-status").textContent = "请填写仓库";
+// ─── Navigation ───
+
+function navigateTo(view) {
+  state.currentView = view;
+
+  // Update nav items
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.view === view);
+  });
+
+  // Show/hide views
+  const views = ['posts', 'tags', 'categories', 'config', 'settings'];
+  views.forEach(v => {
+    const el = document.getElementById(`view-${v}`);
+    if (el) el.classList.toggle('hidden', v !== view);
+  });
+
+  // Load view data
+  switch (view) {
+    case 'posts':
+      loadPosts();
+      updateSuggestions();
+      break;
+    case 'tags':
+      loadTags();
+      break;
+    case 'categories':
+      loadCategories();
+      break;
+    case 'config':
+      loadConfig();
+      break;
+    case 'settings':
+      loadSettings();
+      break;
+  }
+}
+
+function loadSettings() {
+  document.getElementById('setting-token').value = '';
+  document.getElementById('setting-owner').value = state.repoOwner || getStored(REPO_KEY, '').split('/')[0] || '';
+  document.getElementById('setting-repo').value = state.repoName || getStored(REPO_KEY, '').split('/')[1] || '';
+  document.getElementById('setting-branch').value = state.repoBranch || getBranch();
+  document.getElementById('setting-root').value = state.repoRoot || getRoot();
+}
+
+async function saveSettings() {
+  const token = document.getElementById('setting-token').value.trim();
+  const owner = document.getElementById('setting-owner').value.trim();
+  const repo = document.getElementById('setting-repo').value.trim();
+  const branch = document.getElementById('setting-branch').value.trim() || 'main';
+  const root = document.getElementById('setting-root').value.trim();
+
+  if (!token || !owner || !repo) {
+    toast('请填写 Token、仓库所有者和仓库名称', 'warning');
     return;
   }
-  localStorage.setItem(REPO_KEY, repo);
-  localStorage.setItem(BRANCH_KEY, branch || "main");
-  localStorage.setItem(ROOT_KEY, root);
-  $("settings-status").textContent = "已保存";
-  setTimeout(() => {
-    $("settings-status").textContent = "";
-  }, 1500);
-  loadPosts();
+
+  try {
+    const result = await setupRepo(token, owner, repo, branch, root);
+    saveRepoSettings(owner, repo, branch, root);
+    state.repoConfigured = true;
+    updateRepoIndicator();
+    updateCommitIndicator();
+    toast('仓库连接成功!', 'success');
+    navigateTo('posts');
+  } catch (err) {
+    toast(`连接失败: ${err.message}`, 'error');
+  }
 }
 
-function bind() {
-  $("btn-login")?.addEventListener("click", startLogin);
-  $("btn-login-big")?.addEventListener("click", startLogin);
-  $("btn-logout")?.addEventListener("click", async () => {
-    await logout();
-    toast("已退出", "ok");
-    updateUI();
+async function disconnectRepo() {
+  if (!confirm('确定断开仓库连接? 未提交的更改将丢失。')) return;
+  // Clear server-side repo config by destroying and recreating
+  try {
+    // The simple approach: just clear local state
+    state.repoConfigured = false;
+    state.repoOwner = '';
+    state.repoName = '';
+    state.modifiedFiles = [];
+    updateRepoIndicator();
+    document.getElementById('commit-btn').classList.add('hidden');
+    toast('已断开仓库连接', 'info');
+    navigateTo('settings');
+  } catch (err) {
+    toast(`操作失败: ${err.message}`, 'error');
+  }
+}
+
+// ─── Event Bindings ───
+
+function bindEvents() {
+  // Sidebar toggle
+  document.getElementById('sidebar-toggle').addEventListener('click', () => {
+    document.getElementById('sidebar').classList.toggle('collapsed');
   });
-  $("btn-new")?.addEventListener("click", () => openEditor(null));
 
-  $("btn-save")?.addEventListener("click", savePost);
-  $("btn-delete")?.addEventListener("click", deletePost);
-  $("editor-close")?.addEventListener("click", () => closeModal("editor-modal"));
+  // Theme toggle
+  document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
 
-  $("btn-save-settings")?.addEventListener("click", saveSettings);
-  $("settings-close")?.addEventListener("click", () => closeModal("settings-modal"));
-  $("btn-settings")?.addEventListener("click", () => {
-    openSettings();
-    openModal("settings-modal");
-  });
-
-  document.querySelectorAll(".nav-item").forEach((b) => {
-    b.addEventListener("click", () => {
-      document
-        .querySelectorAll(".nav-item")
-        .forEach((x) => x.classList.remove("active"));
-      b.classList.add("active");
-      const view = b.dataset.view;
-      document
-        .querySelectorAll(".view")
-        .forEach((v) => v.classList.toggle("active", v.id === "view-" + view));
-      if (view === "posts") loadPosts();
-      else if (view === "tags") loadTagCloud();
-      else if (view === "categories") loadCategories();
-      else if (view === "config") loadConfig();
+  // Navigation
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.preventDefault();
+      navigateTo(el.dataset.view);
     });
   });
 
-  $("posts-body")?.addEventListener("click", (e) => {
-    const t = e.target.closest(
-      "button[data-edit],a[data-edit],button[data-copy],button[data-delete]"
-    );
-    if (!t) return;
-    if (t.dataset.edit) openEditor(t.dataset.edit);
-    else if (t.dataset.copy) copyPost(t.dataset.copy);
-    else if (t.dataset.delete) {
-      if (!confirm("确定删除这篇文章？")) return;
-      const slug = t.dataset.delete;
-      (async () => {
-        try {
-          await apiDeletePost(slug);
-          toast("已删除", "ok");
-          loadPosts();
-        } catch (err) {
-          toast("删除失败：" + err.message, "err");
-        }
-      })();
+  // Logout
+  document.getElementById('logout-btn').addEventListener('click', () => {
+    if (confirm('确定登出?')) logout();
+  });
+
+  // Post search
+  const searchInput = document.getElementById('post-search');
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      renderPosts(state.allPosts);
+    });
+  }
+
+  // New post
+  document.getElementById('new-post-btn').addEventListener('click', () => openEditor(null));
+
+  // Editor
+  document.getElementById('editor-close').addEventListener('click', closeEditor);
+  document.getElementById('editor-cancel').addEventListener('click', closeEditor);
+  document.getElementById('editor-save').addEventListener('click', saveEditorPost);
+  document.getElementById('editor-delete').addEventListener('click', deleteEditorPost);
+  document.getElementById('edit-title').addEventListener('input', handleTitleChange);
+  document.getElementById('edit-slug').addEventListener('input', handleSlugChange);
+  document.getElementById('edit-body').addEventListener('input', updatePreview);
+
+  // Editor tabs
+  document.querySelectorAll('.editor-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.editor-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const mode = tab.dataset.tab;
+      document.getElementById('edit-body').classList.toggle('hidden', mode !== 'write');
+      document.getElementById('edit-preview').classList.toggle('hidden', mode !== 'preview');
+      if (mode === 'preview') updatePreview();
+    });
+  });
+
+  // Config save
+  document.getElementById('save-config-btn').addEventListener('click', saveConfigChanges);
+
+  // Settings
+  document.getElementById('settings-save-btn').addEventListener('click', saveSettings);
+  document.getElementById('settings-disconnect-btn').addEventListener('click', disconnectRepo);
+
+  // Commit
+  document.getElementById('commit-btn').addEventListener('click', openCommitModal);
+  document.getElementById('commit-modal-close').addEventListener('click', closeCommitModal);
+  document.getElementById('commit-modal-cancel').addEventListener('click', closeCommitModal);
+  document.getElementById('commit-modal-confirm').addEventListener('click', confirmCommit);
+
+  // Modal overlay close
+  document.getElementById('editor-modal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeEditor();
+  });
+  document.getElementById('commit-modal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeCommitModal();
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (!document.getElementById('editor-modal').classList.contains('hidden')) {
+        closeEditor();
+      } else if (!document.getElementById('commit-modal').classList.contains('hidden')) {
+        closeCommitModal();
+      }
     }
-  });
-
-  $("tags-cloud")?.addEventListener("click", (e) => {
-    const t = e.target.closest("[data-tag]");
-    if (t) loadTagPosts(t.dataset.tag);
-  });
-  $("tags-posts")?.addEventListener("click", (e) => {
-    const a = e.target.closest("a[data-edit]");
-    if (a) openEditor(a.dataset.edit);
-  });
-
-  const tagInput = $("f-tag-input");
-  tagInput?.addEventListener("input", () => tagSuggest(tagInput.value));
-  tagInput?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      const v = tagInput.value.trim();
-      if (v) {
-        addTag(v);
-        tagInput.value = "";
-        $("tag-suggest").classList.add("hidden");
+    // Ctrl+S to save in editor
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      if (!document.getElementById('editor-modal').classList.contains('hidden')) {
+        e.preventDefault();
+        saveEditorPost();
       }
     }
   });
-  $("tag-suggest")?.addEventListener("click", (e) => {
-    const it = e.target.closest("[data-tag]");
-    if (it) {
-      addTag(it.dataset.tag);
-      tagInput.value = "";
-      $("tag-suggest").classList.add("hidden");
+
+  // New tag btn
+  document.getElementById('new-tag-btn')?.addEventListener('click', () => {
+    const name = prompt('输入标签名:');
+    if (name && name.trim()) {
+      toast('标签将通过文章 frontmatter 添加。请在编辑文章时使用标签输入框。', 'info');
     }
   });
-  $("f-tags")?.addEventListener("click", (e) => {
-    const x = e.target.closest(".chip-x");
-    if (x) x.closest(".chip").remove();
-  });
 
-  $("f-content")?.addEventListener("input", updatePreview);
-
-  $("post-search")?.addEventListener("input", () => loadPosts());
-
-  $("btn-slug-from-title")?.addEventListener("click", () => {
-    const t = $("f-title")?.value || "";
-    const s = $("f-slug");
-    if (s && !s.readOnly) s.value = slugifyTitle(t);
-  });
-
-  document.querySelectorAll(".cs-trigger").forEach((t) => {
-    t.addEventListener("click", () => {
-      const panel = t.parentElement.querySelector(".cs-panel");
-      if (panel) panel.classList.toggle("hidden");
-    });
-  });
-  document.querySelectorAll(".cs-panel").forEach((p) => {
-    p.addEventListener("click", (e) => {
-      const item = e.target.closest(".cs-item");
-      if (!item) return;
-      const trigger = p.parentElement.querySelector(".cs-trigger");
-      if (trigger) trigger.textContent = item.dataset.value;
-      p.classList.add("hidden");
-    });
-  });
-
-  $("btn-save-config")?.addEventListener("click", saveConfig);
-
-  document
-    .querySelectorAll("#tag-select .cs-trigger, #cat-select .cs-trigger")
-    .forEach((t) => {
-      t.addEventListener("click", () => {
-        const panel = t.parentElement.querySelector(".cs-panel");
-        if (!panel) return;
-        const names = t.closest("#tag-select")
-          ? getAllTags()
-          : getAllCategories();
-        panel.innerHTML = names
-          .map((n) => `<div class="cs-item" data-value="${esc(n)}">${esc(n)}</div>`)
-          .join("");
-        panel.classList.toggle("hidden");
-      });
-    });
-}
-
-async function boot() {
-  bind();
-
-  // Check auth status with server first
-  await checkAuth();
-
-  // Handle URL error params from OAuth callback
-  const params = new URLSearchParams(location.search);
-  if (params.has("error")) {
-    toast("登录失败：" + params.get("error"), "err");
-    history.replaceState(null, "", location.pathname + location.hash);
-  }
-
-  if (state.authed) {
-    try {
-      await setupRepo();
-    } catch (e) {
-      toast("仓库初始化失败：" + e.message, "err");
+  // New category btn
+  document.getElementById('new-category-btn')?.addEventListener('click', () => {
+    const name = prompt('输入分类名:');
+    if (name && name.trim()) {
+      toast('分类将通过文章 frontmatter 添加。请在编辑文章时设置分类字段。', 'info');
     }
-  }
-
-  updateUI();
+  });
 }
 
-if (document.readyState === "loading")
-  document.addEventListener("DOMContentLoaded", boot);
-else boot();
+// ─── Boot ───
+
+document.addEventListener('DOMContentLoaded', () => App.boot());
+
+window.App = App;
+window.navigateTo = navigateTo;

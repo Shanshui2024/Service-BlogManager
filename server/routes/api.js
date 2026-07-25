@@ -1,329 +1,409 @@
-// server/routes/api.js — Blog management API (local git + filesystem)
-// Replaces the old GitHub API proxy with high-level REST endpoints.
 import { Router } from 'express';
-import { repoManager } from '../repo.js';
 import matter from 'gray-matter';
 import yaml from 'js-yaml';
-import path from 'path';
+import { RepoManager } from '../repo.js';
 
-export function createApiRouter() {
-  const router = Router();
+const router = Router();
 
-  // ---- Auth guard ----
-  router.use((req, res, next) => {
-    if (!req.session?.githubToken) {
-      return res.status(401).json({ error: 'Not authenticated' });
+// In-memory repo manager instances keyed by session ID
+// Each user gets their own repo manager
+const repoManagers = new Map();
+
+function getRepo(req) {
+  if (!repoManagers.has(req.sessionID)) {
+    repoManagers.set(req.sessionID, new RepoManager());
+  }
+  return repoManagers.get(req.sessionID);
+}
+
+function getRoot(req) {
+  return req.session.repoConfig?.root || '';
+}
+
+// Auth guard middleware
+function requireAuth(req, res, next) {
+  if (!req.session.arcUser) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  next();
+}
+
+// Repo guard middleware
+function requireRepo(req, res, next) {
+  if (!req.session.repoConfig) {
+    return res.status(400).json({ error: 'Repository not configured' });
+  }
+  const repo = getRepo(req);
+  if (!repo.isReady()) {
+    return res.status(400).json({ error: 'Repository not initialized. Please reconfigure.' });
+  }
+  next();
+}
+
+// ─── Repo Setup ─────────────────────────────────────────────
+
+router.post('/repo/setup', requireAuth, async (req, res) => {
+  try {
+    const { token, owner, repo: repoName, branch = 'main', root = '' } = req.body;
+
+    if (!token || !owner || !repoName) {
+      return res.status(400).json({ error: 'token, owner, and repo are required' });
     }
-    next();
-  });
 
-  // ---- POST /api/repo/setup — Clone or pull the repository ----
-  router.post('/repo/setup', async (req, res) => {
-    try {
-      const { owner, repo, branch } = req.body;
-      if (!owner || !repo) {
-        return res.status(400).json({ error: 'owner and repo are required' });
-      }
-      await repoManager.setup(
-        req.session.githubToken,
-        owner,
-        repo,
-        branch || 'main',
-      );
-      res.json({ ok: true, repo: `${owner}/${repo}`, branch: branch || 'main' });
-    } catch (err) {
-      console.error('repo/setup error:', err);
-      res.status(500).json({ error: err.message });
-    }
-  });
+    const repo = getRepo(req);
+    const result = await repo.setup(token, owner, repoName, branch);
 
-  // ---- GET /api/posts — List posts with frontmatter ----
-  router.get('/posts', async (req, res) => {
-    try {
-      const { owner, repo, root, branch } = req.query;
-      if (!owner || !repo) {
-        return res.status(400).json({ error: 'owner and repo required' });
-      }
-      // Auto-setup if needed (idempotent)
-      await repoManager.setup(
-        req.session.githubToken,
-        owner,
-        repo,
-        branch || 'main',
-      );
+    req.session.repoConfig = {
+      token,
+      owner,
+      repo: repoName,
+      branch,
+      root,
+    };
 
-      const rootDir = root || 'data/posts';
-      const files = await repoManager.listFiles(owner, repo, rootDir);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('Repo setup error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
-      const posts = [];
-      for (const f of files) {
-        const name = f.split('/').pop();
-        if (!/\.(md|mdx)$/i.test(name)) continue;
+// ─── Repo Status ────────────────────────────────────────────
 
-        const raw = await repoManager.readFile(owner, repo, f);
-        const { data } = matter(raw);
+router.get('/repo/status', requireAuth, requireRepo, async (req, res) => {
+  try {
+    const repo = getRepo(req);
+    const status = await repo.getStatus();
+    const modified = repo.getModifiedFiles();
 
+    res.json({
+      configured: true,
+      config: {
+        owner: req.session.repoConfig.owner,
+        repo: req.session.repoConfig.repo,
+        branch: req.session.repoConfig.branch,
+        root: req.session.repoConfig.root,
+      },
+      status,
+      modifiedFiles: modified,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Posts CRUD ─────────────────────────────────────────────
+
+// GET /api/posts — list all posts
+router.get('/posts', requireAuth, requireRepo, async (req, res) => {
+  try {
+    const repo = getRepo(req);
+    const root = getRoot(req);
+    const files = await repo.listFiles(root);
+
+    const posts = [];
+
+    for (const file of files) {
+      try {
+        const content = await repo.readFile(root, file);
+        if (!content) continue;
+
+        const { data, content: body } = matter(content);
         posts.push({
-          slug: name.replace(/\.(md|mdx)$/i, ''),
-          path: f,
-          title: data.title || name,
-          date: data.date || '',
-          draft: !!data.draft,
-          ...data,
+          slug: file.replace(/\.(md|mdx)$/, ''),
+          path: file,
+          title: data.title || file,
+          date: data.date || null,
+          category: data.category || data.categories?.[0] || null,
+          tags: Array.isArray(data.tags) ? data.tags
+            : typeof data.tags === 'string' ? data.tags.split(',').map(t => t.trim()).filter(Boolean)
+            : [],
+          excerpt: data.excerpt || '',
+          draft: data.draft || false,
+          pinned: data.pinned || false,
+          wordCount: body ? body.split(/\s+/).length : 0,
+        });
+      } catch {
+        posts.push({
+          slug: file.replace(/\.(md|mdx)$/, ''),
+          path: file,
+          title: file,
+          date: null,
+          category: null,
+          tags: [],
+          excerpt: '',
+          draft: false,
+          pinned: false,
+          wordCount: 0,
         });
       }
-
-      res.json(posts);
-    } catch (err) {
-      console.error('GET /posts error:', err);
-      res.status(500).json({ error: err.message });
     }
-  });
 
-  // ---- GET /api/posts/:slug — Read a single post (raw content + frontmatter) ----
-  router.get('/posts/:slug', async (req, res) => {
+    // Sort: pinned first, then by date desc
+    posts.sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      const da = a.date ? new Date(a.date).getTime() : 0;
+      const db = b.date ? new Date(b.date).getTime() : 0;
+      return db - da;
+    });
+
+    res.json(posts);
+  } catch (err) {
+    console.error('List posts error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/posts/:slug — read a post
+router.get('/posts/:slug', requireAuth, requireRepo, async (req, res) => {
+  try {
+    const repo = getRepo(req);
+    const root = getRoot(req);
+    const slug = req.params.slug;
+
+    // Try .md then .mdx
+    let content = await repo.readFile(root, `${slug}.md`);
+    let format = 'md';
+    if (!content) {
+      content = await repo.readFile(root, `${slug}.mdx`);
+      format = 'mdx';
+    }
+
+    if (!content) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const { data, content: body } = matter(content);
+
+    res.json({
+      slug,
+      format,
+      frontmatter: data,
+      body: body.trim(),
+      raw: content,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/posts/:slug — create or update a post
+router.put('/posts/:slug', requireAuth, requireRepo, async (req, res) => {
+  try {
+    const repo = getRepo(req);
+    const root = getRoot(req);
+    const slug = req.params.slug;
+    const { frontmatter, body, format = 'md' } = req.body;
+
+    if (!body && !frontmatter) {
+      return res.status(400).json({ error: 'No content provided' });
+    }
+
+    // Build frontmatter
+    const fm = { ...frontmatter };
+
+    // Generate frontmatter string
+    let fmStr = '---\n';
+    if (fm.title) fmStr += `title: "${String(fm.title).replace(/"/g, '\\"')}"\n`;
+    if (fm.date) fmStr += `date: "${fm.date}"\n`;
+    if (fm.category) fmStr += `category: "${fm.category}"\n`;
+    if (fm.tags && fm.tags.length > 0) {
+      fmStr += 'tags:\n';
+      for (const t of fm.tags) {
+        fmStr += `  - "${String(t).replace(/"/g, '\\"')}"\n`;
+      }
+    }
+    if (fm.excerpt) fmStr += `excerpt: "${String(fm.excerpt).replace(/"/g, '\\"')}"\n`;
+    if (fm.draft !== undefined && fm.draft !== null) fmStr += `draft: ${fm.draft}\n`;
+    if (fm.pinned) fmStr += `pinned: true\n`;
+    fmStr += '---\n\n';
+    fmStr += body || '';
+
+    const filePath = `${slug}.${format}`;
+    await repo.writeFile(root, filePath, fmStr);
+
+    res.json({
+      success: true,
+      slug,
+      path: filePath,
+    });
+  } catch (err) {
+    console.error('Save post error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/posts/:slug
+router.delete('/posts/:slug', requireAuth, requireRepo, async (req, res) => {
+  try {
+    const repo = getRepo(req);
+    const root = getRoot(req);
+    const slug = req.params.slug;
+
+    let deleted = await repo.deleteFile(root, `${slug}.md`);
+    if (!deleted) {
+      deleted = await repo.deleteFile(root, `${slug}.mdx`);
+    }
+
+    if (!deleted) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    res.json({ success: true, slug });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Config Management ──────────────────────────────────────
+
+// GET /api/config — read config.yml
+router.get('/config', requireAuth, requireRepo, async (req, res) => {
+  try {
+    const repo = getRepo(req);
+    const root = getRoot(req);
+
+    const content = await repo.readFile(root, 'config.yml');
+    if (!content) {
+      return res.status(404).json({ error: 'config.yml not found' });
+    }
+
+    let parsed;
     try {
-      const { owner, repo, root, branch } = req.query;
-      if (!owner || !repo) {
-        return res.status(400).json({ error: 'owner and repo required' });
-      }
-
-      await repoManager.setup(
-        req.session.githubToken,
-        owner,
-        repo,
-        branch || 'main',
-      );
-
-      const rootDir = root || 'data/posts';
-      const files = await repoManager.listFiles(owner, repo, rootDir);
-
-      const slug = req.params.slug;
-      const target = files.find(
-        (f) =>
-          f.endsWith(`/${slug}.md`) ||
-          f.endsWith(`/${slug}.mdx`) ||
-          f.endsWith(`\\${slug}.md`) ||
-          f.endsWith(`\\${slug}.mdx`),
-      );
-
-      if (!target) {
-        return res.status(404).json({ error: `Post "${slug}" not found` });
-      }
-
-      const raw = await repoManager.readFile(owner, repo, target);
-      const { data: frontmatter, content } = matter(raw);
-
-      res.json({ slug, path: target, frontmatter, content, raw });
-    } catch (err) {
-      console.error('GET /posts/:slug error:', err);
-      res.status(500).json({ error: err.message });
+      parsed = yaml.load(content);
+    } catch {
+      parsed = null;
     }
-  });
 
-  // ---- PUT /api/posts/:slug — Create or update a post ----
-  router.put('/posts/:slug', async (req, res) => {
-    try {
-      const { owner, repo, root, branch, content, message } = req.body;
-      if (!owner || !repo) {
-        return res.status(400).json({ error: 'owner and repo required' });
-      }
-      if (content == null) {
-        return res.status(400).json({ error: 'content is required' });
-      }
+    res.json({ raw: content, parsed });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-      await repoManager.setup(
-        req.session.githubToken,
-        owner,
-        repo,
-        branch || 'main',
-      );
+// PUT /api/config — save config.yml
+router.put('/config', requireAuth, requireRepo, async (req, res) => {
+  try {
+    const repo = getRepo(req);
+    const root = getRoot(req);
+    const { content } = req.body;
 
-      const rootDir = root || 'data/posts';
-      const slug = req.params.slug;
-
-      // Detect existing file extension (preserve .md vs .mdx)
-      let ext = '.mdx';
-      const files = await repoManager.listFiles(owner, repo, rootDir);
-      const existing = files.find(
-        (f) =>
-          f.endsWith(`/${slug}.md`) ||
-          f.endsWith(`/${slug}.mdx`) ||
-          f.endsWith(`\\${slug}.md`) ||
-          f.endsWith(`\\${slug}.mdx`),
-      );
-      if (existing) {
-        ext = existing.endsWith('.mdx') ? '.mdx' : '.md';
-      }
-
-      const filePath = path.posix.join(rootDir, `${slug}${ext}`);
-      await repoManager.writeFile(
-        owner,
-        repo,
-        filePath,
-        content,
-        req.session.githubToken,
-        message || `update: ${slug}`,
-      );
-
-      res.json({ ok: true, path: filePath, slug });
-    } catch (err) {
-      console.error('PUT /posts/:slug error:', err);
-      res.status(500).json({ error: err.message });
+    if (!content) {
+      return res.status(400).json({ error: 'No content provided' });
     }
-  });
 
-  // ---- DELETE /api/posts/:slug ----
-  router.delete('/posts/:slug', async (req, res) => {
-    try {
-      const { owner, repo, root, branch, message } = req.body;
-      if (!owner || !repo) {
-        return res.status(400).json({ error: 'owner and repo required' });
-      }
+    await repo.writeFile(root, 'config.yml', content);
 
-      await repoManager.setup(
-        req.session.githubToken,
-        owner,
-        repo,
-        branch || 'main',
-      );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-      const rootDir = root || 'data/posts';
-      const slug = req.params.slug;
-      const files = await repoManager.listFiles(owner, repo, rootDir);
-      const target = files.find(
-        (f) =>
-          f.endsWith(`/${slug}.md`) ||
-          f.endsWith(`/${slug}.mdx`) ||
-          f.endsWith(`\\${slug}.md`) ||
-          f.endsWith(`\\${slug}.mdx`),
-      );
+// ─── Search ─────────────────────────────────────────────────
 
-      if (!target) {
-        return res.status(404).json({ error: `Post "${slug}" not found` });
-      }
+router.get('/search', requireAuth, requireRepo, async (req, res) => {
+  try {
+    const repo = getRepo(req);
+    const root = getRoot(req);
+    const q = (req.query.q || '').toLowerCase();
 
-      await repoManager.deleteFile(
-        owner,
-        repo,
-        target,
-        req.session.githubToken,
-        message || `delete: ${slug}`,
-      );
-
-      res.json({ ok: true, deleted: target });
-    } catch (err) {
-      console.error('DELETE /posts/:slug error:', err);
-      res.status(500).json({ error: err.message });
+    if (!q) {
+      return res.json([]);
     }
-  });
 
-  // ---- GET /api/config — Read config.yml ----
-  router.get('/config', async (req, res) => {
-    try {
-      const { owner, repo, branch } = req.query;
-      if (!owner || !repo) {
-        return res.status(400).json({ error: 'owner and repo required' });
-      }
+    const files = await repo.listFiles(root);
+    const results = [];
 
-      await repoManager.setup(
-        req.session.githubToken,
-        owner,
-        repo,
-        branch || 'main',
-      );
+    for (const file of files) {
+      try {
+        const content = await repo.readFile(root, file);
+        if (!content) continue;
 
-      const raw = await repoManager.readFile(owner, repo, 'config.yml');
-      res.json({ raw, parsed: yaml.load(raw) });
-    } catch (err) {
-      console.error('GET /config error:', err);
-      res.status(500).json({ error: err.message });
+        const { data, content: body } = matter(content);
+        const text = `${data.title || ''} ${data.excerpt || ''} ${body || ''}`.toLowerCase();
+
+        if (text.includes(q)) {
+          results.push({
+            slug: file.replace(/\.(md|mdx)$/, ''),
+            path: file,
+            title: data.title || file,
+            date: data.date || null,
+            category: data.category || null,
+            excerpt: data.excerpt || '',
+          });
+        }
+      } catch { /* skip broken files */ }
     }
-  });
 
-  // ---- PUT /api/config — Update config.yml ----
-  router.put('/config', async (req, res) => {
-    try {
-      const { owner, repo, branch, content, message } = req.body;
-      if (!owner || !repo) {
-        return res.status(400).json({ error: 'owner and repo required' });
-      }
-      if (content == null) {
-        return res.status(400).json({ error: 'content is required' });
-      }
+    res.json(results);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-      await repoManager.setup(
-        req.session.githubToken,
-        owner,
-        repo,
-        branch || 'main',
-      );
+// ─── Commit ─────────────────────────────────────────────────
 
-      await repoManager.writeFile(
-        owner,
-        repo,
-        'config.yml',
-        content,
-        req.session.githubToken,
-        message || 'update config.yml',
-      );
+router.post('/commit', requireAuth, requireRepo, async (req, res) => {
+  try {
+    const repo = getRepo(req);
+    const message = req.body.message || 'Update via BlogManager';
+    const result = await repo.commitAll(message);
 
-      res.json({ ok: true });
-    } catch (err) {
-      console.error('PUT /config error:', err);
-      res.status(500).json({ error: err.message });
+    res.json(result);
+  } catch (err) {
+    console.error('Commit error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Tags & Categories Aggregation ──────────────────────────
+
+router.get('/aggregate', requireAuth, requireRepo, async (req, res) => {
+  try {
+    const repo = getRepo(req);
+    const root = getRoot(req);
+    const files = await repo.listFiles(root);
+
+    const tagsMap = new Map();
+    const categoriesMap = new Map();
+
+    for (const file of files) {
+      try {
+        const content = await repo.readFile(root, file);
+        if (!content) continue;
+        const { data } = matter(content);
+
+        // Tags
+        const tags = Array.isArray(data.tags) ? data.tags
+          : typeof data.tags === 'string' ? data.tags.split(',').map(t => t.trim()).filter(Boolean)
+          : [];
+        for (const t of tags) {
+          if (t) tagsMap.set(t, (tagsMap.get(t) || 0) + 1);
+        }
+
+        // Categories
+        const cats = data.category ? [data.category]
+          : Array.isArray(data.categories) ? data.categories
+          : [];
+        for (const c of cats) {
+          if (c) categoriesMap.set(c, (categoriesMap.get(c) || 0) + 1);
+        }
+      } catch { /* skip */ }
     }
-  });
 
-  // ---- GET /api/search — Full-text search in post files ----
-  router.get('/search', async (req, res) => {
-    try {
-      const { owner, repo, q, root, branch } = req.query;
-      if (!owner || !repo || !q) {
-        return res.status(400).json({ error: 'owner, repo, and q are required' });
-      }
+    res.json({
+      tags: Array.from(tagsMap.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count),
+      categories: Array.from(categoriesMap.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-      await repoManager.setup(
-        req.session.githubToken,
-        owner,
-        repo,
-        branch || 'main',
-      );
-
-      const results = await repoManager.searchFiles(
-        owner,
-        repo,
-        q,
-        root || 'data/posts',
-      );
-
-      res.json(results);
-    } catch (err) {
-      console.error('GET /search error:', err);
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  // ---- GET /api/github/user — Get authenticated user info ----
-  router.get('/github/user', async (req, res) => {
-    try {
-      const ghRes = await fetch('https://api.github.com/user', {
-        headers: {
-          Authorization: `Bearer ${req.session.githubToken}`,
-          Accept: 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28',
-        },
-      });
-      const data = await ghRes.json();
-      if (!ghRes.ok) {
-        return res.status(ghRes.status).json(data);
-      }
-      res.json(data);
-    } catch (err) {
-      console.error('GET /github/user error:', err);
-      res.status(502).json({ error: err.message });
-    }
-  });
-
-  return router;
-}
+export default router;

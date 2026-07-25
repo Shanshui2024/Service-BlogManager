@@ -1,32 +1,33 @@
-// auth.js — Server-side GitHub OAuth login (no PKCE needed).
-import { state } from "./storage.js";
-import { toast } from "./ui.js";
+// auth.js — ArcAccount authentication
 
-/** Check authentication status with the server. */
-export async function checkAuth() {
+async function checkAuth() {
   try {
-    const res = await fetch("/api/auth/status");
-    const data = await res.json();
+    const data = await request('/api/auth/status');
     state.authed = data.authenticated;
-    state.ghUser = data.user || null;
+    state.arcUser = data.user || null;
+    state.repoConfigured = data.repoConfigured || false;
   } catch {
     state.authed = false;
-    state.ghUser = null;
+    state.arcUser = null;
+    state.repoConfigured = false;
   }
+  return state.authed;
 }
 
-/** Redirect to server-side GitHub OAuth login. */
-export function startLogin() {
-  window.location.href = "/api/auth/login";
+function startLogin() {
+  window.location.href = '/api/auth/login';
 }
 
-/** Log out (destroy server session). */
-export async function logout() {
+async function logout() {
   try {
-    await fetch("/api/auth/logout", { method: "POST" });
-  } catch {
-    // Ignore, session will expire anyway
-  }
+    await request('/api/auth/logout', { method: 'POST' });
+  } catch { /* ignore */ }
   state.authed = false;
-  state.ghUser = null;
+  state.arcUser = null;
+  state.repoConfigured = false;
+  showLogin();
 }
+
+window.checkAuth = checkAuth;
+window.startLogin = startLogin;
+window.logout = logout;

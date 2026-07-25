@@ -1,22 +1,38 @@
-// config.js — Blog config CRUD (uses backend local-git API)
-import { getConfig, saveConfig } from './api.js';
-import { parseConfigYaml, patchYamlText, dumpConfig } from './yaml.js';
+// config.js — Site config management
 
-export { parseConfigYaml, patchYamlText, dumpConfig };
-
-/** Fetch config.yml from the backend */
-export async function loadConfig() {
-  const data = await getConfig();
-  return { raw: data.raw, parsed: data.parsed };
+async function loadConfig() {
+  try {
+    const data = await getConfig();
+    state.configRaw = data.raw;
+    state.configParsed = data.parsed;
+    renderConfigEditor();
+  } catch (err) {
+    if (err.message.includes('not found')) {
+      document.getElementById('config-loading').textContent = 'config.yml 未找到';
+    } else {
+      document.getElementById('config-loading').textContent = `加载失败: ${err.message}`;
+    }
+  }
 }
 
-/** Fetch and return parsed config for the settings page */
-export async function getConfigStructured() {
-  const { parsed } = await loadConfig();
-  return parsed;
+function renderConfigEditor() {
+  document.getElementById('config-loading').classList.add('hidden');
+  const editor = document.getElementById('config-editor');
+  editor.classList.remove('hidden');
+  editor.value = state.configRaw || '';
 }
 
-/** Save config.yml to the backend */
-export async function writeConfig(content) {
-  return saveConfig(content);
+async function saveConfigChanges() {
+  const editor = document.getElementById('config-editor');
+  try {
+    await saveConfig(editor.value);
+    state.configRaw = editor.value;
+    toast('配置已保存 (尚未提交)', 'success');
+    updateCommitIndicator();
+  } catch (err) {
+    toast(`保存失败: ${err.message}`, 'error');
+  }
 }
+
+window.loadConfig = loadConfig;
+window.saveConfigChanges = saveConfigChanges;

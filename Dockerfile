@@ -7,17 +7,17 @@ RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 # Install production dependencies
-COPY package.json ./
-RUN npm install --omit=dev
+COPY package.json package-lock.json* ./
+RUN npm ci --omit=dev
 
 # Copy app files
 COPY server/ ./server/
 COPY public/ ./public/
 
-# Runtime stage
+# ─── Runtime stage ───
 FROM node:20-slim
 
-# Install git in runtime stage too
+# Install git in runtime stage
 RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -26,13 +26,13 @@ WORKDIR /app
 RUN addgroup --system --gid 1001 app && \
     adduser --system --uid 1001 --gid 1001 app
 
-# Copy node_modules and app from build stage
+# Copy from build stage
 COPY --from=base /app/node_modules ./node_modules
 COPY --from=base /app/server ./server
 COPY --from=base /app/public ./public
 COPY package.json ./
 
-# Directories for sessions and local repo clones
+# Create runtime directories
 RUN mkdir -p .sessions .repos && chown -R app:app .sessions .repos
 
 USER app

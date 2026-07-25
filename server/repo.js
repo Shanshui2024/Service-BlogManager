@@ -1,206 +1,239 @@
-// server/repo.js — Local Git repository manager
-// Clones/pulls repos locally; reads/writes files directly; auto-commits and pushes.
 import simpleGit from 'simple-git';
-import fs from 'fs/promises';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import fs from 'fs/promises';
+import { existsSync } from 'fs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPOS_DIR = path.join(__dirname, '..', '.repos');
+const REPOS_DIR = path.resolve('.repos');
 
-const GIT_USER = 'Shanshui Writer';
-const GIT_EMAIL = 'writer@blog.shanshui.site';
-
-class RepoManager {
+export class RepoManager {
   constructor() {
-    this._repos = new Map(); // "owner/repo" -> { dir, branch }
-  }
-
-  _dir(owner, repo) {
-    const safe = `${owner}--${repo}`.replace(/[^a-zA-Z0-9_\-\.]/g, '_');
-    return path.join(REPOS_DIR, safe);
+    this.git = null;
+    this.repoPath = null;
+    this.owner = null;
+    this.repo = null;
+    this.branch = null;
+    this.modifiedFiles = new Set();
   }
 
   /**
-   * Clone or pull the repository.
-   * If already cloned: fetch + hard reset + pull.
-   * If not cloned: fresh clone with the given branch.
+   * Clone or pull the GitHub repository.
+   * @param {string} token - GitHub personal access token
+   * @param {string} owner - Repo owner
+   * @param {string} repo - Repo name
+   * @param {string} [branch='main'] - Branch name
    */
   async setup(token, owner, repo, branch = 'main') {
-    const dir = this._dir(owner, repo);
-    const key = `${owner}/${repo}`;
-    const tokenUrl = `https://x-access-token:${token}@github.com/${owner}/${repo}.git`;
+    const dirName = `${owner}_${repo}`;
+    this.repoPath = path.join(REPOS_DIR, dirName);
+    this.owner = owner;
+    this.repo = repo;
+    this.branch = branch;
 
-    let alreadyCloned = false;
-    try {
-      await fs.access(path.join(dir, '.git'));
-      alreadyCloned = true;
-    } catch {
-      alreadyCloned = false;
-    }
+    const remoteUrl = `https://${token}@github.com/${owner}/${repo}.git`;
 
-    if (alreadyCloned) {
-      const git = simpleGit(dir);
-      // Update remote URL with fresh token, then fetch latest
-      await git.remote(['set-url', 'origin', tokenUrl]);
-      await git.fetch('origin', branch);
-      await git.checkout(branch);
-      await git.reset(['--hard', `origin/${branch}`]);
-      this._repos.set(key, { dir, branch });
+    await fs.mkdir(REPOS_DIR, { recursive: true });
+
+    if (existsSync(this.repoPath)) {
+      this.git = simpleGit(this.repoPath);
+      await this.git.fetch('origin');
+      await this.git.checkout(branch);
+      await this.git.pull('origin', branch);
     } else {
-      await fs.mkdir(REPOS_DIR, { recursive: true });
-      await simpleGit().clone(tokenUrl, dir, ['--branch', branch, '--single-branch']);
-      this._repos.set(key, { dir, branch });
+      this.git = simpleGit();
+      await this.git.clone(remoteUrl, this.repoPath, ['--branch', branch, '--single-branch']);
+      this.git = simpleGit(this.repoPath);
     }
 
-    return { dir, branch };
+    // Configure git user for commits
+    await this.git.addConfig('user.name', 'BlogManager', false, 'local');
+    await this.git.addConfig('user.email', 'blogmanager@shanshui.site', false, 'local');
+
+    this.modifiedFiles.clear();
+
+    return {
+      owner,
+      repo,
+      branch,
+      path: this.repoPath,
+    };
   }
 
-  _ensure(key) {
-    const r = this._repos.get(key);
-    if (!r)
-      throw new Error('Repository not set up. Call POST /api/repo/setup first.');
-    return r;
+  /**
+   * Resolve a file path within the repo, respecting the content root.
+   */
+  resolvePath(root, filePath) {
+    const base = root ? path.join(this.repoPath, root) : this.repoPath;
+    return path.join(base, filePath);
   }
 
-  /** List all files in a directory (relative to repo root). Sorted. */
-  async listFiles(owner, repo, dirPath = '.') {
-    const key = `${owner}/${repo}`;
-    const { dir } = this._ensure(key);
-    const fullPath = path.join(dir, dirPath);
-    try {
-      const entries = await fs.readdir(fullPath, { withFileTypes: true, recursive: false });
-      return entries
-        .filter((e) => e.isFile())
-        .map((e) => path.posix.join(dirPath, e.name))
-        .sort();
-    } catch {
+  /**
+   * List markdown files recursively.
+   */
+  async listFiles(root = '') {
+    const base = root ? path.join(this.repoPath, root) : this.repoPath;
+
+    if (!existsSync(base)) {
       return [];
     }
-  }
 
-  /** Recursively list all files under a directory */
-  async listFilesRecursive(owner, repo, dirPath = '.') {
-    const key = `${owner}/${repo}`;
-    const { dir } = this._ensure(key);
-    const fullPath = path.join(dir, dirPath);
-    const result = [];
-
-    async function walk(currentDir, relativeDir) {
-      try {
-        const entries = await fs.readdir(currentDir, { withFileTypes: true });
-        for (const e of entries) {
-          if (e.name.startsWith('.') && e.name !== '.well-known') continue;
-          if (e.isDirectory()) {
-            await walk(
-              path.join(currentDir, e.name),
-              path.posix.join(relativeDir, e.name),
-            );
-          } else {
-            result.push(path.posix.join(relativeDir, e.name));
-          }
-        }
-      } catch {}
-    }
-
-    await walk(fullPath, dirPath);
-    return result.sort();
-  }
-
-  /** Read a file from the local clone */
-  async readFile(owner, repo, filePath) {
-    const key = `${owner}/${repo}`;
-    const { dir } = this._ensure(key);
-    return fs.readFile(path.join(dir, filePath), 'utf-8');
-  }
-
-  /**
-   * Write a file, then commit and push.
-   * Creates parent directories if needed.
-   */
-  async writeFile(owner, repo, filePath, content, token, message) {
-    const key = `${owner}/${repo}`;
-    const { dir, branch } = this._ensure(key);
-    const fullPath = path.join(dir, filePath);
-
-    await fs.mkdir(path.dirname(fullPath), { recursive: true });
-    await fs.writeFile(fullPath, content, 'utf-8');
-
-    await this._commitAndPush(dir, branch, owner, repo, token, filePath, message);
-  }
-
-  /**
-   * Delete a file, then commit and push.
-   */
-  async deleteFile(owner, repo, filePath, token, message) {
-    const key = `${owner}/${repo}`;
-    const { dir, branch } = this._ensure(key);
-    const fullPath = path.join(dir, filePath);
-
-    await fs.rm(fullPath, { force: true });
-
-    const git = simpleGit(dir);
-    const tokenUrl = `https://x-access-token:${token}@github.com/${owner}/${repo}.git`;
-    await git.remote(['set-url', 'origin', tokenUrl]);
-    try {
-      await git.add(filePath); // stage the deletion
-      await git.commit(message);
-    } catch {
-      // If no changes to commit, that's ok — continue to push anyway
-    }
-    await git.push('origin', branch);
-  }
-
-  async _commitAndPush(dir, branch, owner, repo, token, filePath, message) {
-    const git = simpleGit(dir);
-    const tokenUrl = `https://x-access-token:${token}@github.com/${owner}/${repo}.git`;
-
-    // Update remote URL with fresh token
-    await git.remote(['set-url', 'origin', tokenUrl]);
-
-    // Set commit author (harmless to call repeatedly)
-    await git.addConfig('user.email', GIT_EMAIL);
-    await git.addConfig('user.name', GIT_USER);
-
-    await git.add(filePath);
-    try {
-      await git.commit(message);
-    } catch {
-      // If nothing to commit, skip the push
-      return;
-    }
-    await git.push('origin', branch);
-  }
-
-  /** Search files using a simple text search (no GitHub search API dependency) */
-  async searchFiles(owner, repo, query, rootDir = '.') {
-    const key = `${owner}/${repo}`;
-    const { dir } = this._ensure(key);
     const results = [];
 
-    const allFiles = await this.listFilesRecursive(owner, repo, rootDir);
-
-    for (const filePath of allFiles) {
-      if (!/\.(md|mdx|yml|yaml|json|txt|toml)$/.test(filePath)) continue;
-      try {
-        const content = await fs.readFile(path.join(dir, filePath), 'utf-8');
-        const lines = content.split('\n');
-        for (let i = 0; i < lines.length; i++) {
-          if (lines[i].toLowerCase().includes(query.toLowerCase())) {
-            results.push({
-              file: filePath,
-              line: i + 1,
-              text: lines[i].trim().substring(0, 200),
-            });
-            if (results.length >= 50) break; // limit results
-          }
+    async function walk(dir, prefix) {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      for (const e of entries) {
+        if (e.name.startsWith('.') || e.name === 'node_modules') continue;
+        const full = path.join(dir, e.name);
+        const rel = prefix ? `${prefix}/${e.name}` : e.name;
+        if (e.isDirectory()) {
+          await walk(full, rel);
+        } else if (e.isFile() && /\.(md|mdx)$/i.test(e.name)) {
+          results.push(rel);
         }
-      } catch {}
-      if (results.length >= 50) break;
+      }
     }
 
+    await walk(base, '');
     return results;
   }
-}
 
-export const repoManager = new RepoManager();
+  /**
+   * List ALL files recursively (for config files, etc).
+   */
+  async listAllFiles(root = '') {
+    const base = root ? path.join(this.repoPath, root) : this.repoPath;
+
+    if (!existsSync(base)) {
+      return [];
+    }
+
+    const results = [];
+
+    async function walk(dir, prefix) {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      for (const e of entries) {
+        if (e.name.startsWith('.') || e.name === 'node_modules') continue;
+        const full = path.join(dir, e.name);
+        const rel = prefix ? `${prefix}/${e.name}` : e.name;
+        if (e.isDirectory()) {
+          await walk(full, rel);
+        } else if (e.isFile()) {
+          results.push(rel);
+        }
+      }
+    }
+
+    await walk(base, '');
+    return results;
+  }
+
+  /**
+   * Read a file from the repo.
+   */
+  async readFile(root, filePath) {
+    const full = this.resolvePath(root, filePath);
+    try {
+      return await fs.readFile(full, 'utf-8');
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Write a file to the repo (does NOT commit).
+   */
+  async writeFile(root, filePath, content) {
+    const full = this.resolvePath(root, filePath);
+    await fs.mkdir(path.dirname(full), { recursive: true });
+    await fs.writeFile(full, content, 'utf-8');
+    this.modifiedFiles.add(filePath);
+    return true;
+  }
+
+  /**
+   * Delete a file from the repo (does NOT commit).
+   */
+  async deleteFile(root, filePath) {
+    const full = this.resolvePath(root, filePath);
+    try {
+      await fs.unlink(full);
+      this.modifiedFiles.add(filePath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Check if the working tree has uncommitted changes.
+   */
+  async hasUncommittedChanges() {
+    if (!this.git) return false;
+    const status = await this.git.status();
+    return !status.isClean();
+  }
+
+  /**
+   * Check if repo is ready (git is configured).
+   */
+  isReady() {
+    return this.git !== null && this.repoPath !== null;
+  }
+
+  /**
+   * Commit all changes and push to remote.
+   */
+  async commitAll(message = 'Update via BlogManager') {
+    if (!this.git) throw new Error('Repository not configured');
+
+    // Stage all changes
+    await this.git.add('./*');
+    const status = await this.git.status();
+
+    if (status.isClean()) {
+      return { committed: false, message: 'No changes to commit' };
+    }
+
+    // Commit
+    await this.git.commit(message);
+
+    // Push
+    await this.git.push('origin', this.branch);
+
+    this.modifiedFiles.clear();
+
+    const summary = {
+      created: status.created.length,
+      modified: status.modified.length,
+      deleted: status.deleted.length,
+    };
+
+    return {
+      committed: true,
+      message: 'Changes committed and pushed successfully',
+      summary,
+    };
+  }
+
+  /**
+   * Get list of tracked modified files.
+   */
+  getModifiedFiles() {
+    return Array.from(this.modifiedFiles);
+  }
+
+  /**
+   * Get git status summary.
+   */
+  async getStatus() {
+    if (!this.git) return null;
+    const status = await this.git.status();
+    return {
+      modified: status.modified,
+      created: status.created,
+      deleted: status.deleted,
+      staged: status.staged,
+      isClean: status.isClean(),
+      current: status.current,
+    };
+  }
+}

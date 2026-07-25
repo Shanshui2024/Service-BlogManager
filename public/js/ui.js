@@ -1,144 +1,179 @@
-// ui.js — small DOM/string helpers, toasts, and pure UI renderers.
-export function esc(s) {
-  return String(s == null ? "" : s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+// ui.js — UI utility functions
+
+// HTML escape
+function esc(s) {
+  if (!s) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
-export function cssEsc(s) {
-  if (window.CSS && CSS.escape) return CSS.escape(s);
-  return String(s).replace(/["\\]/g, "\\$&");
+// CSS class escape
+function cssEsc(s) {
+  if (!s) return '';
+  return String(s).replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
-export function toast(msg, kind = "info") {
-  const box = document.getElementById("toast-box");
-  if (!box) return;
-  const el = document.createElement("div");
-  el.className = "toast toast-" + kind;
+// Toast notification
+function toast(msg, kind = 'info') {
+  const container = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast ${kind}`;
   el.textContent = msg;
-  box.appendChild(el);
-  setTimeout(() => el.classList.add("show"), 10);
+  container.appendChild(el);
+
   setTimeout(() => {
-    el.classList.remove("show");
-    setTimeout(() => el.remove(), 300);
-  }, 2600);
+    el.style.opacity = '0';
+    el.style.transition = 'opacity 0.2s';
+    setTimeout(() => el.remove(), 200);
+  }, 3500);
 }
 
-export function nowInput() {
+// Date formatting
+function nowInput() {
   const d = new Date();
-  const p = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(
-    d.getHours()
-  )}:${p(d.getMinutes())}`;
+  return d.toISOString().slice(0, 16);
 }
 
-export function dateToInput(d) {
-  if (typeof d === "string") d = new Date(d);
-  if (isNaN(d)) return nowInput();
-  const p = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(
-    d.getHours()
-  )}:${p(d.getMinutes())}`;
+function dateToInput(dateStr) {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    return d.toISOString().slice(0, 16);
+  } catch { return ''; }
 }
 
-export function dateToYaml(d) {
-  if (typeof d === "string") d = new Date(d);
-  if (isNaN(d)) d = new Date();
-  const p = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(
-    d.getHours()
-  )}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+function dateToYaml(dateStr) {
+  if (!dateStr) return '';
+  return dateStr.replace('T', ' ') + ':00';
 }
 
-export function slugifyTitle(t) {
-  return String(t || "")
+function formatDate(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
+
+// Slug from title
+function slugifyTitle(t) {
+  return (t || 'untitled')
     .toLowerCase()
-    .trim()
-    .replace(/[^\w一-龥]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .replace(/[\u4e00-\u9fff]+/g, 'post')
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    || 'untitled';
 }
 
-export function setEditorStatus(msg, kind = "info") {
-  const el = document.getElementById("editor-status");
-  if (el) {
-    el.textContent = msg || "";
-    el.className = "status" + (kind !== "info" ? " status-" + kind : "");
-  }
+// New post template
+function helloTemplate(title) {
+  const t = title || 'New Post';
+  const d = new Date();
+  const ds = d.toISOString().slice(0, 10) + ' ' +
+    String(d.getHours()).padStart(2, '0') + ':' +
+    String(d.getMinutes()).padStart(2, '0') + ':00';
+
+  return `---
+title: "${t.replace(/"/g, '\\"')}"
+date: "${ds}"
+category: ""
+tags: []
+draft: true
+---
+
+Start writing here...`;
 }
 
-export function updatePreview() {
-  const ta = document.getElementById("f-content");
-  const pv = document.getElementById("preview");
-  if (!ta || !pv) return;
-  const src = ta.value || "";
-  if (window.marked && window.marked.parse) {
-    try {
-      pv.innerHTML = window.marked.parse(src);
-    } catch {
-      pv.textContent = src;
-    }
-  } else {
-    pv.textContent = src;
-  }
+// Color to hex
+function colorToHex(c) {
+  if (!c) return '#000000';
+  if (c.startsWith('#')) return c;
+  const ctx = document.createElement('canvas').getContext('2d');
+  if (!ctx) return '#000000';
+  ctx.fillStyle = c;
+  return ctx.fillStyle;
 }
 
-export function helloTemplate() {
-  return `# 你好\n\n这是一篇示例文章。\n\n- 支持 Markdown\n- 支持标签与分类\n\n> 写于 ${dateToYaml(
-    new Date()
-  )}\n`;
-}
+// Simple markdown to HTML (for preview)
+function mdPreview(text) {
+  if (!text) return '';
+  let html = esc(text);
 
-export function indexObj(arr, key) {
-  const o = {};
-  for (const it of arr || []) o[it[key]] = it;
-  return o;
-}
-
-export function colorToHex(s) {
-  if (!s) return "#888888";
-  const c = s.trim();
-  if (c.startsWith("#")) return c;
-  const m = c.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i);
-  if (m) {
-    const h = (n) => Number(n).toString(16).padStart(2, "0");
-    return "#" + h(m[1]) + h(m[2]) + h(m[3]);
-  }
-  return "#888888";
-}
-
-export function rowHtml(label, value) {
-  const v = value == null ? "" : value;
-  return `<div class="cfg-row"><span class="cfg-label">${esc(
-    label
-  )}</span><input class="input cfg-input" data-cfg="${esc(label)}" value="${esc(
-    v
-  )}" /></div>`;
-}
-
-export function renderRows(container, rows) {
-  if (!container) return;
-  container.innerHTML = rows.map((r) => rowHtml(r.label, r.value)).join("");
-}
-
-export function gatherRows(form) {
-  const out = {};
-  if (!form) return out;
-  form.querySelectorAll("[data-cfg]").forEach((el) => {
-    out[el.getAttribute("data-cfg")] = el.value;
+  // Code blocks
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+    return `<pre><code class="language-${lang}">${code.trim()}</code></pre>`;
   });
-  return out;
+
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+  // Headers
+  html = html.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
+  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+  // Bold and italic
+  html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+  // Links
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+  // Images
+  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">');
+
+  // Horizontal rules
+  html = html.replace(/^---$/gm, '<hr>');
+
+  // Blockquotes
+  html = html.replace(/^&gt; (.*)$/gm, '<blockquote>$1</blockquote>');
+
+  // Ordered lists
+  html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+  html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ol>$&</ol>');
+
+  // Unordered lists
+  html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+
+  // Paragraphs — wrap remaining text in <p>
+  html = html.replace(/^(?!<[a-zA-Z/])(.+)$/gm, '<p>$1</p>');
+
+  // Clean up empty paragraphs
+  html = html.replace(/<p>\s*<\/p>/g, '');
+
+  return html;
 }
 
-export function bindConfigAddButtons(pane, list) {
-  if (!pane || !list) return;
-  pane.onclick = (e) => {
-    if (e.target.classList.contains("cfg-add")) {
-      const label = prompt("新字段名：");
-      if (!label) return;
-      list.push({ label, value: "" });
-      renderRows(pane, list);
-    }
-  };
+// Toggle theme
+function toggleTheme() {
+  const isDark = document.documentElement.classList.toggle('dark');
+  localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  updateThemeIcons();
 }
+
+function updateThemeIcons() {
+  const isDark = document.documentElement.classList.contains('dark');
+  document.getElementById('theme-icon-light').classList.toggle('hidden', isDark);
+  document.getElementById('theme-icon-dark').classList.toggle('hidden', !isDark);
+}
+
+window.esc = esc;
+window.cssEsc = cssEsc;
+window.toast = toast;
+window.nowInput = nowInput;
+window.dateToInput = dateToInput;
+window.dateToYaml = dateToYaml;
+window.formatDate = formatDate;
+window.slugifyTitle = slugifyTitle;
+window.helloTemplate = helloTemplate;
+window.colorToHex = colorToHex;
+window.mdPreview = mdPreview;
+window.toggleTheme = toggleTheme;
+window.updateThemeIcons = updateThemeIcons;

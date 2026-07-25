@@ -1,206 +1,340 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>写作工具</title>
-    <link rel="icon" href="https://static.shanshui.site/logo/logo_invert.png" />
-    <link rel="stylesheet" href="/styles.css" />
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  </head>
-  <body>
-    <!-- 全屏登录页：未登录时显示，登录后由 app.js 隐藏 -->
-    <div id="login-screen" class="login-screen hidden">
-      <div class="login-card">
-        <div class="login-brand">写作工具</div>
-        <p class="login-sub">使用 GitHub 登录后管理你的博客仓库。Token 安全存储在服务端会话中，登录后即可读写文章、标签与配置。</p>
-        <button id="btn-login-big" class="btn btn-solid btn-lg">使用 GitHub 登录</button>
-        <p class="login-foot">授权范围：<code>repo</code>。首次使用需在登录后于「仓库设置」填写 <code>owner/repo</code>。</p>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BlogManager</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+  <script>
+    // Prevent flash of wrong theme
+    (function() {
+      const theme = localStorage.getItem('theme') || 'light';
+      document.documentElement.classList.toggle('dark', theme === 'dark');
+    })();
+  </script>
+</head>
+<body>
+  <!-- Login Screen -->
+  <div id="login-screen" class="login-screen">
+    <div class="login-card">
+      <div class="login-brand">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+        </svg>
+        <span class="login-brand-text">BlogManager</span>
       </div>
+      <p class="login-desc">使用 ArcAccount 登录以管理你的博客</p>
+      <button id="login-btn" class="btn btn-solid" onclick="App.startLogin()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>
+        </svg>
+        使用 ArcAccount 登录
+      </button>
+      <p class="login-error" id="login-error"></p>
     </div>
+  </div>
 
+  <!-- Main App -->
+  <div id="app" class="app hidden">
+    <!-- Top Bar -->
     <header class="topbar">
-      <div class="brand">写作工具</div>
-      <div class="top-actions">
-        <span id="repo-badge" class="repo-badge hidden"></span>
-        <button id="btn-settings" class="btn btn-sm hidden">仓库设置</button>
-        <button id="btn-login" class="btn btn-sm hidden">使用 GitHub 登录</button>
-        <button id="btn-logout" class="btn btn-sm hidden">退出 (GitHub)</button>
-        <span id="status" class="status"></span>
-        <button id="btn-new" class="btn btn-solid hidden">+ 新建文章</button>
+      <div class="topbar-left">
+        <button id="sidebar-toggle" class="btn btn-ghost icon-btn" title="Toggle sidebar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
+        <span class="topbar-brand">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          </svg>
+          <span class="topbar-brand-text">BlogManager</span>
+        </span>
+      </div>
+      <div class="topbar-right">
+        <!-- Repo indicator -->
+        <span id="repo-indicator" class="repo-indicator" title="Repository status">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
+          <span id="repo-label">未配置</span>
+        </span>
+        <!-- Modified count -->
+        <button id="commit-btn" class="btn btn-ghost commit-indicator hidden" title="Commit changes">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/><path d="M12 2v4"/><path d="M12 18v4"/><path d="M2 12h4"/><path d="M18 12h4"/>
+          </svg>
+          <span id="commit-count">0 changes</span>
+        </button>
+        <!-- Theme toggle -->
+        <button id="theme-toggle" class="btn btn-ghost icon-btn" title="Toggle theme">
+          <svg id="theme-icon-light" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          <svg id="theme-icon-dark" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="hidden"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+        <!-- User avatar -->
+        <span id="user-info" class="user-info">
+          <img id="user-avatar" src="" alt="" class="user-avatar">
+          <span id="user-name" class="user-name"></span>
+        </span>
+        <button id="logout-btn" class="btn btn-ghost" title="Logout">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
       </div>
     </header>
 
-    <div id="toast-box" class="toast-box"></div>
-
-    <!-- Repo settings (owner/repo + branch). Stored in localStorage. -->
-    <div id="settings-modal" class="modal hidden">
-      <div class="modal-box">
-        <div class="modal-head">
-          <h3>仓库设置</h3>
-          <button id="settings-close" class="btn btn-ghost">✕</button>
+    <div class="main-layout">
+      <!-- Sidebar -->
+      <nav id="sidebar" class="sidebar">
+        <div class="sidebar-nav">
+          <a href="#" class="nav-item" data-view="posts">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <span>文章</span>
+            <span class="nav-badge" id="post-count-badge">0</span>
+          </a>
+          <a href="#" class="nav-item" data-view="tags">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+            <span>标签</span>
+          </a>
+          <a href="#" class="nav-item" data-view="categories">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            <span>分类</span>
+          </a>
+          <a href="#" class="nav-item" data-view="config">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span>配置</span>
+          </a>
         </div>
-        <div class="editor-form">
-          <label class="field">
-            <span>仓库 (owner/repo) *</span>
-            <input id="s-repo" class="input" placeholder="Shanshui2024/Site-BlogRepo" />
-          </label>
-          <label class="field">
-            <span>分支</span>
-            <input id="s-branch" class="input" placeholder="main" />
-          </label>
-          <label class="field">
-            <span>仓库内博客根目录 (可空，留空=仓库根)</span>
-            <input id="s-root" class="input" placeholder="" />
-          </label>
-          <p class="hint">例：博客在仓库根的 <code>data/posts/</code> 下，根目录留空。保存后需用 GitHub 登录才能读写。</p>
+        <div class="sidebar-footer">
+          <a href="#" class="nav-item" data-view="settings">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+            <span>仓库设置</span>
+          </a>
         </div>
-        <div class="modal-foot">
-          <span id="settings-status" class="status"></span>
-          <button id="btn-save-settings" class="btn btn-solid">保存</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="layout">
-      <nav class="sidebar">
-        <button class="nav-item active" data-view="posts">文章</button>
-        <button class="nav-item" data-view="tags">标签</button>
-        <button class="nav-item" data-view="categories">分类</button>
-        <button class="nav-item" data-view="config">配置</button>
       </nav>
 
+      <!-- Content Area -->
       <main class="content">
-        <section id="view-posts" class="view active">
-          <div class="view-head">
-            <h2>文章</h2>
-            <input id="post-search" class="input" placeholder="搜索标题 / 标签" />
+        <!-- Posts View -->
+        <div id="view-posts" class="view">
+          <div class="view-header">
+            <h1 class="view-title">文章管理</h1>
+            <div class="view-actions">
+              <input type="text" id="post-search" class="input" placeholder="搜索文章...">
+              <button id="new-post-btn" class="btn btn-solid">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                新建文章
+              </button>
+            </div>
           </div>
-          <table class="table">
+          <div id="posts-loading" class="loading-spinner">加载中...</div>
+          <table id="posts-table" class="table hidden">
             <thead>
               <tr>
-                <th>标题</th>
-                <th>分类</th>
-                <th>标签</th>
-                <th>日期</th>
-                <th>状态</th>
-                <th></th>
+                <th class="col-title">标题</th>
+                <th class="col-category">分类</th>
+                <th class="col-date">日期</th>
+                <th class="col-status">状态</th>
+                <th class="col-actions">操作</th>
               </tr>
             </thead>
-            <tbody id="posts-body"></tbody>
+            <tbody id="posts-tbody"></tbody>
           </table>
-        </section>
+          <div id="posts-empty" class="empty-state hidden">
+            <p>暂无文章</p>
+            <p class="text-muted">点击"新建文章"开始写作</p>
+          </div>
+        </div>
 
-        <section id="view-tags" class="view">
-          <div class="view-head">
-            <h2>标签</h2>
-            <div class="custom-select" id="tag-select">
-              <button type="button" class="cs-trigger input" data-cs="tag-select">选择标签…</button>
-              <div class="cs-panel hidden"></div>
+        <!-- Tags View -->
+        <div id="view-tags" class="view hidden">
+          <div class="view-header">
+            <h1 class="view-title">标签管理</h1>
+            <div class="view-actions">
+              <button id="new-tag-btn" class="btn btn-solid">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                添加标签
+              </button>
             </div>
           </div>
-          <p class="hint">点击标签可查看该标签下的文章；在编辑器中也可通过中文搜索添加标签。</p>
-          <div id="tags-cloud" class="chips"></div>
-          <div id="tags-posts" class="tags-posts hidden"></div>
-          <h3 class="sec">标签颜色</h3>
-          <p class="hint">点击色块可打开系统取色器；右侧可手动输入十六进制颜色值，二者自动同步。修改后即时保存。</p>
-          <div id="tag-colors" class="color-list"></div>
-        </section>
+          <div id="tags-list" class="tags-grid"></div>
+        </div>
 
-        <section id="view-categories" class="view">
-          <div class="view-head"><h2>分类</h2></div>
-          <div id="categories-list" class="cat-list"></div>
-          <h3 class="sec">分类颜色</h3>
-          <p class="hint">点击色块可打开系统取色器；右侧可手动输入十六进制颜色值，二者自动同步。修改后即时保存。</p>
-          <div class="color-toolbar">
-            <div class="custom-select" id="cat-select">
-              <button type="button" class="cs-trigger input" data-cs="cat-select">选择分类…</button>
-              <div class="cs-panel hidden"></div>
+        <!-- Categories View -->
+        <div id="view-categories" class="view hidden">
+          <div class="view-header">
+            <h1 class="view-title">分类管理</h1>
+            <div class="view-actions">
+              <button id="new-category-btn" class="btn btn-solid">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                添加分类
+              </button>
             </div>
-            <span class="hint" style="margin:0">选择分类可快速定位到下方对应行</span>
           </div>
-          <div id="category-colors" class="color-list"></div>
-        </section>
+          <div id="categories-list" class="tags-grid"></div>
+        </div>
 
-        <section id="view-config" class="view">
-          <div class="view-head"><h2>站点配置 (config.yml)</h2></div>
-          <form id="config-form" class="form"></form>
-          <div class="form-actions">
-            <button type="button" id="btn-save-config" class="btn btn-solid">保存配置</button>
+        <!-- Config View -->
+        <div id="view-config" class="view hidden">
+          <div class="view-header">
+            <h1 class="view-title">站点配置</h1>
+            <div class="view-actions">
+              <button id="save-config-btn" class="btn btn-solid">保存配置</button>
+            </div>
           </div>
-        </section>
+          <div id="config-loading" class="loading-spinner">加载中...</div>
+          <textarea id="config-editor" class="config-editor hidden" spellcheck="false"></textarea>
+        </div>
+
+        <!-- Settings View -->
+        <div id="view-settings" class="view hidden">
+          <div class="view-header">
+            <h1 class="view-title">仓库设置</h1>
+          </div>
+          <div class="settings-form">
+            <div class="form-group">
+              <label class="form-label" for="setting-token">GitHub Personal Access Token</label>
+              <input type="password" id="setting-token" class="input" placeholder="ghp_...">
+              <p class="form-hint">需要 repo 权限。Token 仅在当前会话中保存。</p>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="setting-owner">仓库所有者</label>
+              <input type="text" id="setting-owner" class="input" placeholder="Shanshui2024">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="setting-repo">仓库名称</label>
+              <input type="text" id="setting-repo" class="input" placeholder="Site-BlogRepo">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="setting-branch">分支</label>
+              <input type="text" id="setting-branch" class="input" value="main" placeholder="main">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="setting-root">内容根目录</label>
+              <input type="text" id="setting-root" class="input" placeholder="data/posts">
+              <p class="form-hint">文章存放的目录路径，留空为仓库根目录</p>
+            </div>
+            <button id="settings-save-btn" class="btn btn-solid">连接仓库</button>
+            <button id="settings-disconnect-btn" class="btn btn-ghost btn-danger" style="margin-left:8px;">断开连接</button>
+          </div>
+        </div>
       </main>
     </div>
+  </div>
 
-    <div id="editor-modal" class="modal hidden">
-      <div class="modal-box">
-        <div class="modal-head">
-          <h3 id="editor-title">新建文章</h3>
-          <button id="editor-close" class="btn btn-ghost">✕</button>
-        </div>
+  <!-- Editor Modal -->
+  <div id="editor-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="editor-title">编辑文章</h2>
+        <button id="editor-close" class="btn btn-ghost icon-btn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
         <div class="editor-grid">
-          <div class="editor-form">
-            <label class="field">
-              <span>标题 *</span>
-              <input id="f-title" class="input" placeholder="文章标题" />
-            </label>
-            <div class="field-row">
-              <label class="field">
-                <span>日期</span>
-                <input id="f-date" class="input" type="datetime-local" />
-              </label>
-              <label class="field">
-                <span>分类</span>
-                <div class="custom-select" id="f-category-select">
-                  <button type="button" class="cs-trigger input" data-cs="f-category-select">选择分类…</button>
-                  <div class="cs-panel hidden"></div>
-                </div>
-              </label>
-            </div>
-            <label class="field">
-              <span>URL 文件名 (slug)</span>
-              <div class="slug-row">
-                <input id="f-slug" class="input" placeholder="english-slug" />
-                <button type="button" id="btn-slug-from-title" class="btn">从标题生成</button>
+          <div class="editor-meta">
+            <div class="form-row">
+              <div class="form-group flex-1">
+                <label class="form-label">标题</label>
+                <input type="text" id="edit-title" class="input" placeholder="文章标题">
               </div>
-              <span class="field-hint">保存在 data/posts/ 下，可含子目录，如 tutorial/my-post</span>
-            </label>
-            <label class="field">
-              <span>标签（输入后回车添加；支持中文搜索）</span>
-              <input id="f-tag-input" class="input" placeholder="输入标签后回车，或搜索" />
-              <div id="tag-suggest" class="suggest hidden"></div>
-              <div id="f-tags" class="chips"></div>
-            </label>
-            <label class="field">
-              <span>摘要 (excerpt)</span>
-              <textarea id="f-excerpt" class="input textarea-sm" rows="2"></textarea>
-            </label>
-            <div class="field-row toggles">
-              <label class="toggle toggle-left"><span class="switch"><input id="f-draft" type="checkbox" /><span class="track"></span><span class="thumb"></span></span><span class="t-label">草稿</span></label>
-              <label class="toggle toggle-left"><span class="switch"><input id="f-pinned" type="checkbox" /><span class="track"></span><span class="thumb"></span></span><span class="t-label">置顶</span></label>
+              <div class="form-group">
+                <label class="form-label">Slug</label>
+                <input type="text" id="edit-slug" class="input mono" placeholder="my-post">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">日期</label>
+                <input type="datetime-local" id="edit-date" class="input">
+              </div>
+              <div class="form-group flex-1">
+                <label class="form-label">分类</label>
+                <input type="text" id="edit-category" class="input" placeholder="分类名称" list="category-suggestions">
+                <datalist id="category-suggestions"></datalist>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">标签</label>
+              <div id="edit-tags-container" class="tags-input-wrap">
+                <input type="text" id="edit-tag-input" class="input tags-input" placeholder="输入标签后按回车添加" list="tag-suggestions">
+                <datalist id="tag-suggestions"></datalist>
+              </div>
+              <div id="edit-tags-list" class="tags-chip-list"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">摘要</label>
+              <input type="text" id="edit-excerpt" class="input" placeholder="文章摘要（可选）">
+            </div>
+            <div class="form-row form-switches">
+              <label class="switch-label">
+                <input type="checkbox" id="edit-draft" class="switch-input">
+                <span class="switch-track"></span>
+                <span>草稿</span>
+              </label>
+              <label class="switch-label">
+                <input type="checkbox" id="edit-pinned" class="switch-input">
+                <span class="switch-track"></span>
+                <span>置顶</span>
+              </label>
             </div>
           </div>
-          <div class="editor-body">
-            <div class="pane">
-              <div class="pane-head">正文 (Markdown / MDX)</div>
-              <textarea id="f-content" class="content-area" placeholder="在此书写正文"></textarea>
+          <div class="editor-content">
+            <div class="editor-tabs">
+              <button class="editor-tab active" data-tab="write">编辑</button>
+              <button class="editor-tab" data-tab="preview">预览</button>
             </div>
-            <div class="pane">
-              <div class="pane-head">预览</div>
-              <div id="preview" class="preview"></div>
-            </div>
-          </div>
-        </div>
-        <div class="modal-foot">
-          <span id="editor-status" class="status"></span>
-          <div>
-            <button id="btn-delete" class="btn btn-danger hidden">删除</button>
-            <button id="btn-save" class="btn btn-solid">保存</button>
+            <textarea id="edit-body" class="editor-textarea" placeholder="开始写作...&#10;&#10;支持 Markdown 语法&#10;&#10;> [!NOTE]&#10;> 使用 GitHub Alert 语法"></textarea>
+            <div id="edit-preview" class="editor-preview hidden"></div>
           </div>
         </div>
       </div>
+      <div class="modal-footer">
+        <button id="editor-delete" class="btn btn-danger">删除</button>
+        <div class="modal-footer-right">
+          <span id="editor-status" class="text-muted"></span>
+          <button id="editor-cancel" class="btn btn-ghost">取消</button>
+          <button id="editor-save" class="btn btn-solid">保存</button>
+        </div>
+      </div>
     </div>
+  </div>
 
-    <script type="module" src="/js/app.js"></script>
-  </body>
+  <!-- Commit Modal -->
+  <div id="commit-modal" class="modal-overlay hidden">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h2>提交更改</h2>
+        <button id="commit-modal-close" class="btn btn-ghost icon-btn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="commit-files-list" class="commit-files"></div>
+        <div class="form-group" style="margin-top:16px;">
+          <label class="form-label">提交信息</label>
+          <input type="text" id="commit-message" class="input" value="Update via BlogManager" placeholder="Commit message">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="commit-modal-cancel" class="btn btn-ghost">取消</button>
+        <button id="commit-modal-confirm" class="btn btn-solid">提交并推送</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="/js/storage.js"></script>
+  <script src="/js/yaml.js"></script>
+  <script src="/js/ui.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/config.js"></script>
+  <script src="/js/posts.js"></script>
+  <script src="/js/app.js"></script>
+</body>
 </html>

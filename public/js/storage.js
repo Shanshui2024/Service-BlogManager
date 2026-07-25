@@ -1,36 +1,52 @@
-// storage.js — localStorage keys, getters, and shared in-memory state.
-// Token is now stored server-side in session.  Client only stores repo config.
-export const REPO_KEY = "sw_gh_repo";
-export const BRANCH_KEY = "sw_gh_branch";
-export const ROOT_KEY = "sw_gh_root";
+// storage.js — State and localStorage management
 
-export function getRepo() {
-  const r = localStorage.getItem(REPO_KEY);
-  return r && r.trim() ? r.trim() : "Shanshui2024/Site-BlogRepo";
-}
-export function getBranch() {
-  const b = localStorage.getItem(BRANCH_KEY);
-  return (b && b.trim() ? b.trim() : "v2");
-}
-export function getRoot() {
-  const r = localStorage.getItem(ROOT_KEY);
-  return (r && r.trim() ? r.trim() : "data/posts").replace(/^\/+|\/+$/g, "");
-}
+const REPO_KEY = 'bm_repo';
+const BRANCH_KEY = 'bm_branch';
+const ROOT_KEY = 'bm_root';
 
-// Shared, mutable, app-wide state.
-export const state = {
-  allPosts: [],
-  tagCloud: [],
-  tagPosts: {},
-  categories: [],
-  allTagNames: [],
-  cfg: null,
-  tagColors: {},
-  categoryColors: {},
-  editingSlug: null,
-  editingSha: null,
-  /** Whether the user is authenticated with GitHub (fetched from server) */
+// Global application state
+const state = {
   authed: false,
-  /** GitHub username */
-  ghUser: null,
+  arcUser: null,
+  repoConfigured: false,
+  repoOwner: '',
+  repoName: '',
+  repoBranch: 'main',
+  repoRoot: '',
+  selectedPost: null,
+  allPosts: [],
+  tags: [],
+  categories: [],
+  configRaw: '',
+  configParsed: null,
+  modifiedFiles: [],
+  currentView: 'posts',
+  editorTags: [],
 };
+
+function getStored(key, fallback = '') {
+  try { return localStorage.getItem(key) || fallback; } catch { return fallback; }
+}
+function setStored(key, value) {
+  try { localStorage.setItem(key, value); } catch { /* ignore */ }
+}
+
+function getRepo() { return getStored(REPO_KEY); }
+function getBranch() { return getStored(BRANCH_KEY, 'main'); }
+function getRoot() { return getStored(ROOT_KEY); }
+
+function setRepo(v) { setStored(REPO_KEY, v); }
+function setBranch(v) { setStored(BRANCH_KEY, v); }
+function setRoot(v) { setStored(ROOT_KEY, v); }
+
+function saveRepoSettings(owner, repo, branch, root) {
+  setStored(REPO_KEY, `${owner}/${repo}`);
+  setStored(BRANCH_KEY, branch);
+  setStored(ROOT_KEY, root);
+  state.repoOwner = owner;
+  state.repoName = repo;
+  state.repoBranch = branch;
+  state.repoRoot = root;
+}
+
+window.state = state;

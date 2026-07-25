@@ -1,120 +1,104 @@
-// api.js — Clean API client for the BlogManager backend
-// Replaces the old github.js proxy. All repo operations go through local git clone on server.
-import { getRepo, getBranch, getRoot } from './storage.js';
-
-const BASE = '';
+// api.js — API client for backend communication
 
 async function request(url, options = {}) {
-  const res = await fetch(BASE + url, {
+  const res = await fetch(url, {
+    headers: { 'Content-Type': 'application/json', ...options.headers },
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
   });
 
   if (res.status === 401) {
-    // Token expired — trigger re-login
-    window.dispatchEvent(new CustomEvent('auth-expired'));
-    throw new Error('Authentication expired. Please log in again.');
+    state.authed = false;
+    state.arcUser = null;
+    showLogin();
+    throw new Error('Authentication expired');
   }
 
-  const data = await res.json().catch(() => ({ error: res.statusText }));
-
+  const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error || `Server error: ${res.status}`);
+    throw new Error(data.error || `HTTP ${res.status}`);
   }
-
   return data;
 }
 
-function repoParams() {
-  const full = getRepo(); // "owner/repo"
-  const [owner, repo] = full.split('/');
-  return { owner, repo, branch: getBranch(), root: getRoot() };
-}
+// ─── Repo ───
 
-/** Clone/pull the repository on the server */
-export async function setupRepo() {
+async function setupRepo(token, owner, repo, branch, root) {
   return request('/api/repo/setup', {
     method: 'POST',
-    body: JSON.stringify(repoParams()),
+    body: JSON.stringify({ token, owner, repo, branch, root }),
   });
 }
 
-/** List all posts with their frontmatter */
-export async function getPosts() {
-  const params = repoParams();
-  const qs = new URLSearchParams(params).toString();
-  return request(`/api/posts?${qs}`);
+async function getRepoStatus() {
+  return request('/api/repo/status');
 }
 
-/** Read a single post (raw content + parsed frontmatter) */
-export async function getPost(slug) {
-  const params = repoParams();
-  const qs = new URLSearchParams({ ...params, slug }).toString();
-  return request(`/api/posts/${encodeURIComponent(slug)}?${qs}`);
+// ─── Posts ───
+
+async function getPosts() {
+  return request('/api/posts');
 }
 
-/** Create or update a post. `isNew` adds a "new:" prefix to the commit message. */
-export async function savePost(slug, content, isNew) {
-  const params = repoParams();
+async function getPost(slug) {
+  return request(`/api/posts/${encodeURIComponent(slug)}`);
+}
+
+async function savePost(slug, frontmatter, body, format = 'md') {
   return request(`/api/posts/${encodeURIComponent(slug)}`, {
     method: 'PUT',
-    body: JSON.stringify({
-      ...params,
-      content,
-      message: isNew ? `new: ${slug}` : `update: ${slug}`,
-    }),
+    body: JSON.stringify({ frontmatter, body, format }),
   });
 }
 
-/** Delete a post */
-export async function deletePost(slug) {
-  const params = repoParams();
+async function deletePost(slug) {
   return request(`/api/posts/${encodeURIComponent(slug)}`, {
     method: 'DELETE',
-    body: JSON.stringify({
-      ...params,
-      message: `delete: ${slug}`,
-    }),
   });
 }
 
-/** Read config.yml (raw + parsed) */
-export async function getConfig() {
-  const params = repoParams();
-  const qs = new URLSearchParams({
-    owner: params.owner,
-    repo: params.repo,
-    branch: params.branch,
-  }).toString();
-  return request(`/api/config?${qs}`);
+// ─── Config ───
+
+async function getConfig() {
+  return request('/api/config');
 }
 
-/** Update config.yml */
-export async function saveConfig(content) {
-  const params = repoParams();
+async function saveConfig(content) {
   return request('/api/config', {
     method: 'PUT',
-    body: JSON.stringify({
-      owner: params.owner,
-      repo: params.repo,
-      branch: params.branch,
-      content,
-      message: 'update config.yml',
-    }),
+    body: JSON.stringify({ content }),
   });
 }
 
-/** Search posts (full-text, server-side) */
-export async function searchPosts(query) {
-  const params = repoParams();
-  const qs = new URLSearchParams({ ...params, q: query }).toString();
-  return request(`/api/search?${qs}`);
+// ─── Search ───
+
+async function searchPosts(q) {
+  return request(`/api/search?q=${encodeURIComponent(q)}`);
 }
 
-/** Get authenticated GitHub user info */
-export async function getUser() {
-  return request('/api/github/user');
+// ─── Aggregation ───
+
+async function getAggregate() {
+  return request('/api/aggregate');
 }
+
+// ─── Commit ───
+
+async function commitAll(message) {
+  return request('/api/commit', {
+    method: 'POST',
+    body: JSON.stringify({ message }),
+  });
+}
+
+window.request = request;
+window.setupRepo = setupRepo;
+window.getRepoStatus = getRepoStatus;
+window.getPosts = getPosts;
+window.getPost = getPost;
+window.savePost = savePost;
+window.deletePost = deletePost;
+window.getConfig = getConfig;
+window.saveConfig = saveConfig;
+window.searchPosts = searchPosts;
+window.getAggregate = getAggregate;
+window.commitAll = commitAll;

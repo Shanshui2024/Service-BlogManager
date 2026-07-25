@@ -1,8 +1,8 @@
 {
   "name": "shanshui-writer",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "private": true,
-  "description": "Blog manager with Express server. GitHub OAuth server-side, writes to blog repo.",
+  "description": "Blog writing tool with ArcAccount OAuth2 and GitHub repo integration",
   "type": "module",
   "scripts": {
     "start": "node server/index.js",
