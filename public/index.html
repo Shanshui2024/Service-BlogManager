@@ -359,6 +359,43 @@
               </div>
             </div>
 
+            <!-- 自定义 JS -->
+            <div class="config-section">
+              <h3 class="settings-section-title">自定义 JS</h3>
+              <p class="form-hint">引入外部 JS 脚本，如统计代码、自定义组件等。</p>
+              <div class="form-group">
+                <input type="text" id="cfg-customJs" class="input" data-cfg-key="customJs" placeholder="https://example.com/custom.js（留空则不引入）">
+              </div>
+            </div>
+
+            <!-- 热门文章 -->
+            <div class="config-section">
+              <h3 class="settings-section-title">热门文章</h3>
+              <p class="form-hint">首页按浏览量排序展示热门文章。</p>
+              <div class="form-group" style="margin-top:8px;">
+                <label class="form-label checkbox-label">
+                  <input type="checkbox" id="cfg-hotArticles-enabled" data-cfg-parent="hotArticles" data-cfg-child="enabled" data-cfg-type="bool">
+                  <span>启用热门文章</span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="cfg-hotArticles-maxCount">最多显示数量</label>
+                <input type="number" id="cfg-hotArticles-maxCount" class="input" data-cfg-parent="hotArticles" data-cfg-child="maxCount" min="1" max="20" style="max-width:100px;">
+              </div>
+            </div>
+
+            <!-- 广告位 -->
+            <div class="config-section">
+              <h3 class="settings-section-title">首页广告位</h3>
+              <p class="form-hint">在首页右侧栏显示广告位区域。</p>
+              <div class="form-group" style="margin-top:8px;">
+                <label class="form-label checkbox-label">
+                  <input type="checkbox" id="cfg-ads-enabled" data-cfg-parent="ads" data-cfg-child="enabled" data-cfg-type="bool">
+                  <span>启用广告位</span>
+                </label>
+              </div>
+            </div>
+
             <!-- 分类 Slug 映射 -->
             <div class="config-section">
               <h3 class="settings-section-title">分类 Slug 映射</h3>

@@ -116,7 +116,7 @@ state.configNav = [];
 // Flat keys
 const ALL_FLAT_KEYS = [
   'title', 'description', 'author', 'language', 'favicon',
-  'url', 'keywords', 'icp', 'moe', 'copyright', 'footerLinks',
+  'url', 'keywords', 'customJs', 'icp', 'moe', 'copyright', 'footerLinks',
 ];
 
 // ─── Load ─────────────────────────────────────────────────
@@ -204,6 +204,25 @@ function renderConfigForm() {
       el.value = (p.giscus && p.giscus[gk] !== undefined) ? p.giscus[gk] : '';
       bindField(el);
     }
+  }
+
+  // Nested: hotArticles
+  const haEn = document.getElementById('cfg-hotArticles-enabled');
+  const haMc = document.getElementById('cfg-hotArticles-maxCount');
+  if (haEn) {
+    haEn.checked = p.hotArticles ? p.hotArticles.enabled !== false : false;
+    bindField(haEn);
+  }
+  if (haMc) {
+    haMc.value = (p.hotArticles && p.hotArticles.maxCount) || 5;
+    bindField(haMc);
+  }
+
+  // Nested: ads
+  const adsEn = document.getElementById('cfg-ads-enabled');
+  if (adsEn) {
+    adsEn.checked = p.ads ? p.ads.enabled === true : false;
+    bindField(adsEn);
   }
 
   // Raw YAML
@@ -573,6 +592,17 @@ function toggleRawConfig() {
           'reactionsEnabled','emitMetadata','inputPosition','theme','lang'];
         for (const gk of gks)
           safeSetVal(`cfg-giscus-${gk}`, p.giscus[gk] !== undefined ? String(p.giscus[gk]) : '');
+      }
+      if (p.hotArticles) {
+        const haE = document.getElementById('cfg-hotArticles-enabled');
+        if (haE && p.hotArticles.enabled !== undefined)
+          haE.checked = String(p.hotArticles.enabled).toLowerCase() === 'true';
+        safeSetVal('cfg-hotArticles-maxCount', p.hotArticles.maxCount !== undefined ? String(p.hotArticles.maxCount) : '5');
+      }
+      if (p.ads) {
+        const aE = document.getElementById('cfg-ads-enabled');
+        if (aE && p.ads.enabled !== undefined)
+          aE.checked = String(p.ads.enabled).toLowerCase() === 'true';
       }
       renderNavTable();
       renderMapTable('tagColors');
