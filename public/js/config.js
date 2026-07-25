@@ -48,7 +48,13 @@ function yamlGetMap(raw, key) {
   const lines = m[1].split('\n');
   for (const line of lines) {
     const kv = line.match(/^  (\S[^:]*):\s*(.+)$/);
-    if (kv) result[kv[1].trim()] = kv[2].trim();
+    if (kv) {
+      let val = kv[2].trim();
+      // Strip surrounding quotes (YAML hex colors need quoting for #)
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'")))
+        val = val.slice(1, -1);
+      result[kv[1].trim()] = val;
+    }
   }
   return result;
 }
@@ -62,7 +68,11 @@ function yamlSetMap(raw, key, entries) {
   if (reBlock.test(raw)) raw = raw.replace(reBlock, '').replace(/\n{3,}/g, '\n\n');
   // Append new block
   if (sorted.length === 0) return raw.trimEnd() + '\n';
-  const lines = sorted.map(([k, v]) => `  ${k}: ${v}`);
+  const lines = sorted.map(([k, v]) => {
+    // Wrap hex colors starting with # in quotes so YAML doesn't treat them as comments
+    const needsQuote = v.startsWith('#');
+    return `  ${k}: ${needsQuote ? '"' + v + '"' : v}`;
+  });
   const block = `${key}:\n${lines.join('\n')}\n`;
   return raw.trimEnd() + '\n' + block;
 }
@@ -116,7 +126,7 @@ state.configNav = [];
 // Flat keys
 const ALL_FLAT_KEYS = [
   'title', 'description', 'author', 'language', 'favicon',
-  'url', 'keywords', 'customJs', 'icp', 'moe', 'copyright', 'footerLinks',
+  'url', 'keywords', 'customJs', 'adsContent', 'icp', 'moe', 'copyright', 'footerLinks',
 ];
 
 // ─── Load ─────────────────────────────────────────────────
@@ -223,6 +233,47 @@ function renderConfigForm() {
   if (adsEn) {
     adsEn.checked = p.ads ? p.ads.enabled === true : false;
     bindField(adsEn);
+  }
+
+  // Nested: weather
+  const weEn = document.getElementById('cfg-weather-enabled');
+  const weKey = document.getElementById('cfg-weather-key');
+  const weCity = document.getElementById('cfg-weather-city');
+  if (weEn) {
+    weEn.checked = p.weather ? String(p.weather.enabled).toLowerCase() === 'true' : false;
+    bindField(weEn);
+  }
+  if (weKey) {
+    weKey.value = (p.weather && p.weather.key) || '';
+    bindField(weKey);
+  }
+  if (weCity) {
+    weCity.value = (p.weather && p.weather.city) || '';
+    bindField(weCity);
+  }
+
+  // Nested: latestComments
+  const lcEn = document.getElementById('cfg-latestComments-enabled');
+  const lcMc = document.getElementById('cfg-latestComments-maxCount');
+  if (lcEn) {
+    lcEn.checked = p.latestComments ? String(p.latestComments.enabled).toLowerCase() === 'true' : false;
+    bindField(lcEn);
+  }
+  if (lcMc) {
+    lcMc.value = (p.latestComments && p.latestComments.maxCount) || 5;
+    bindField(lcMc);
+  }
+
+  // Nested: onThisDay
+  const otEn = document.getElementById('cfg-onThisDay-enabled');
+  const otMc = document.getElementById('cfg-onThisDay-maxCount');
+  if (otEn) {
+    otEn.checked = p.onThisDay ? String(p.onThisDay.enabled).toLowerCase() === 'true' : false;
+    bindField(otEn);
+  }
+  if (otMc) {
+    otMc.value = (p.onThisDay && p.onThisDay.maxCount) || 5;
+    bindField(otMc);
   }
 
   // Raw YAML
@@ -603,6 +654,25 @@ function toggleRawConfig() {
         const aE = document.getElementById('cfg-ads-enabled');
         if (aE && p.ads.enabled !== undefined)
           aE.checked = String(p.ads.enabled).toLowerCase() === 'true';
+      }
+      if (p.weather) {
+        const wE = document.getElementById('cfg-weather-enabled');
+        if (wE && p.weather.enabled !== undefined)
+          wE.checked = String(p.weather.enabled).toLowerCase() === 'true';
+        safeSetVal('cfg-weather-key', p.weather.key || '');
+        safeSetVal('cfg-weather-city', p.weather.city || '');
+      }
+      if (p.latestComments) {
+        const lE = document.getElementById('cfg-latestComments-enabled');
+        if (lE && p.latestComments.enabled !== undefined)
+          lE.checked = String(p.latestComments.enabled).toLowerCase() === 'true';
+        safeSetVal('cfg-latestComments-maxCount', p.latestComments.maxCount !== undefined ? String(p.latestComments.maxCount) : '5');
+      }
+      if (p.onThisDay) {
+        const oE = document.getElementById('cfg-onThisDay-enabled');
+        if (oE && p.onThisDay.enabled !== undefined)
+          oE.checked = String(p.onThisDay.enabled).toLowerCase() === 'true';
+        safeSetVal('cfg-onThisDay-maxCount', p.onThisDay.maxCount !== undefined ? String(p.onThisDay.maxCount) : '5');
       }
       renderNavTable();
       renderMapTable('tagColors');

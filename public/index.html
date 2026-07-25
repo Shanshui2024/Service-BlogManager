@@ -387,12 +387,71 @@
             <!-- 广告位 -->
             <div class="config-section">
               <h3 class="settings-section-title">首页广告位</h3>
-              <p class="form-hint">在首页右侧栏显示广告位区域。</p>
+              <p class="form-hint">在首页右侧栏显示广告位区域。每个广告块之间用 <code>---</code> 分隔。</p>
               <div class="form-group" style="margin-top:8px;">
                 <label class="form-label checkbox-label">
                   <input type="checkbox" id="cfg-ads-enabled" data-cfg-parent="ads" data-cfg-child="enabled" data-cfg-type="bool">
                   <span>启用广告位</span>
                 </label>
+              </div>
+              <div class="form-group">
+                <label class="form-label">广告内容（每块用 --- 分隔，支持 HTML）</label>
+                <textarea class="input textarea" id="cfg-adsContent" data-cfg-key="adsContent" rows="6" placeholder="<div class=&quot;ad-block&quot;>广告块 1</div>
+---
+<div class=&quot;ad-block&quot;>广告块 2</div>"></textarea>
+              </div>
+            </div>
+
+            <!-- 天气 -->
+            <div class="config-section">
+              <h3 class="settings-section-title">天气组件 <span class="badge">高德</span></h3>
+              <p class="form-hint">使用高德天气 API 在首页右侧栏显示实时天气。</p>
+              <div class="form-group" style="margin-top:8px;">
+                <label class="form-label checkbox-label">
+                  <input type="checkbox" id="cfg-weather-enabled" data-cfg-parent="weather" data-cfg-child="enabled" data-cfg-type="bool">
+                  <span>启用天气</span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label class="form-label">高德 API Key（Web 服务）</label>
+                <input type="text" class="input" id="cfg-weather-key" data-cfg-parent="weather" data-cfg-child="key" placeholder="填写你的 Web 服务 Key">
+              </div>
+              <div class="form-group">
+                <label class="form-label">城市编码 (adcode)</label>
+                <input type="text" class="input" id="cfg-weather-city" data-cfg-parent="weather" data-cfg-child="city" placeholder="110000（北京）">
+                <p class="form-hint">6 位数字，如北京 110000，上海 310000，深圳 440300</p>
+              </div>
+            </div>
+
+            <!-- 最新评论 -->
+            <div class="config-section">
+              <h3 class="settings-section-title">最新评论</h3>
+              <p class="form-hint">从 GitHub Discussions 获取最新 Giscus 评论，在首页右侧栏展示。</p>
+              <div class="form-group" style="margin-top:8px;">
+                <label class="form-label checkbox-label">
+                  <input type="checkbox" id="cfg-latestComments-enabled" data-cfg-parent="latestComments" data-cfg-child="enabled" data-cfg-type="bool">
+                  <span>启用最新评论</span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label class="form-label">最多显示条数</label>
+                <input type="number" class="input" id="cfg-latestComments-maxCount" data-cfg-parent="latestComments" data-cfg-child="maxCount" min="3" max="10" placeholder="5">
+              </div>
+            </div>
+
+            <!-- 往年今日 -->
+            <div class="config-section">
+              <h3 class="settings-section-title">往年今日</h3>
+              <p class="form-hint">在首页右侧栏展示往年同一天发布的文章。</p>
+              <div class="form-group" style="margin-top:8px;">
+                <label class="form-label checkbox-label">
+                  <input type="checkbox" id="cfg-onThisDay-enabled" data-cfg-parent="onThisDay" data-cfg-child="enabled" data-cfg-type="bool">
+                  <span>启往年今日</span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label class="form-label">最多显示条数</label>
+                <input type="number" class="input" id="cfg-onThisDay-maxCount" data-cfg-parent="onThisDay" data-cfg-child="maxCount" min="1" max="10" placeholder="5">
               </div>
             </div>
 
