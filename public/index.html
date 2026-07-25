@@ -179,37 +179,111 @@
           <div class="view-header">
             <h1 class="view-title">站点配置</h1>
             <div class="view-actions">
+              <span id="config-modified-dot" class="config-modified-dot hidden" title="有未保存的修改"></span>
+              <button id="toggle-raw-config-btn" class="btn btn-ghost">显示原始 YAML</button>
               <button id="save-config-btn" class="btn btn-solid">保存配置</button>
             </div>
           </div>
           <div id="config-loading" class="loading-spinner">加载中...</div>
-          <textarea id="config-editor" class="config-editor hidden" spellcheck="false"></textarea>
 
-          <!-- Tag / Category Colors -->
-          <div class="config-section">
-            <h3 class="settings-section-title">标签颜色</h3>
-            <p class="form-hint">为标签设置颜色，修改后自动保存并标记为待提交。</p>
-            <div class="color-add-row">
-              <input type="text" id="site-tag-new" class="input" placeholder="添加标签名..." style="flex:1; max-width:200px;">
-              <button class="btn btn-ghost" onclick="addColorItem('tag')">+ 添加</button>
+          <div id="config-form-wrap" class="hidden">
+            <!-- 站点信息 -->
+            <div class="config-section">
+              <h3 class="settings-section-title">站点信息</h3>
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label class="form-label" for="cfg-title">标题</label>
+                  <input type="text" id="cfg-title" class="input" placeholder="博客标题" data-yaml-key="title">
+                </div>
+                <div class="form-group flex-1">
+                  <label class="form-label" for="cfg-subtitle">副标题</label>
+                  <input type="text" id="cfg-subtitle" class="input" placeholder="副标题" data-yaml-key="subtitle">
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="cfg-description">描述</label>
+                <textarea id="cfg-description" class="input" rows="2" placeholder="站点描述" data-yaml-key="description"></textarea>
+              </div>
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label class="form-label" for="cfg-author">作者</label>
+                  <input type="text" id="cfg-author" class="input" placeholder="作者名" data-yaml-key="author">
+                </div>
+                <div class="form-group flex-1">
+                  <label class="form-label" for="cfg-keywords">关键词</label>
+                  <input type="text" id="cfg-keywords" class="input" placeholder="多个关键词用逗号分隔" data-yaml-key="keywords">
+                </div>
+              </div>
             </div>
-            <table class="table color-table">
-              <thead><tr><th>标签名</th><th>颜色</th><th>预览</th><th></th></tr></thead>
-              <tbody id="site-tags-list"></tbody>
-            </table>
-          </div>
 
-          <div class="config-section" style="margin-top:24px;">
-            <h3 class="settings-section-title">分类颜色</h3>
-            <p class="form-hint">为分类设置颜色，修改后自动保存并标记为待提交。</p>
-            <div class="color-add-row">
-              <input type="text" id="site-category-new" class="input" placeholder="添加分类名..." style="flex:1; max-width:200px;">
-              <button class="btn btn-ghost" onclick="addColorItem('category')">+ 添加</button>
+            <!-- URL 设置 -->
+            <div class="config-section">
+              <h3 class="settings-section-title">URL 设置</h3>
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label class="form-label" for="cfg-url">站点网址</label>
+                  <input type="text" id="cfg-url" class="input" placeholder="https://example.com" data-yaml-key="url">
+                </div>
+                <div class="form-group flex-1">
+                  <label class="form-label" for="cfg-root">根路径</label>
+                  <input type="text" id="cfg-root" class="input" placeholder="/" data-yaml-key="root">
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="cfg-permalink">永久链接格式</label>
+                <input type="text" id="cfg-permalink" class="input" placeholder=":year/:month/:day/:title/" data-yaml-key="permalink">
+              </div>
             </div>
-            <table class="table color-table">
-              <thead><tr><th>分类名</th><th>颜色</th><th>预览</th><th></th></tr></thead>
-              <tbody id="site-categories-list"></tbody>
-            </table>
+
+            <!-- 语言与时间 -->
+            <div class="config-section">
+              <h3 class="settings-section-title">语言与时间</h3>
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label class="form-label" for="cfg-language">语言</label>
+                  <input type="text" id="cfg-language" class="input" placeholder="zh-CN" data-yaml-key="language">
+                </div>
+                <div class="form-group flex-1">
+                  <label class="form-label" for="cfg-timezone">时区</label>
+                  <input type="text" id="cfg-timezone" class="input" placeholder="Asia/Shanghai" data-yaml-key="timezone">
+                </div>
+              </div>
+            </div>
+
+            <!-- 标签颜色 -->
+            <div class="config-section">
+              <h3 class="settings-section-title">标签颜色</h3>
+              <p class="form-hint">设置标签的显示颜色，存储于 config.yml 的 tag_colors 字段。修改后点击"保存配置"提交。</p>
+              <div class="color-add-row">
+                <input type="text" id="site-tag-new" class="input" placeholder="输入标签名…" style="flex:1; max-width:220px;">
+                <button class="btn btn-ghost" onclick="addColorItem('tag')">+ 添加</button>
+              </div>
+              <table class="table color-table">
+                <thead><tr><th>标签名</th><th>颜色</th><th>十六进制</th><th></th></tr></thead>
+                <tbody id="site-tags-list"></tbody>
+              </table>
+            </div>
+
+            <!-- 分类颜色 -->
+            <div class="config-section">
+              <h3 class="settings-section-title">分类颜色</h3>
+              <p class="form-hint">设置分类的显示颜色，存储于 config.yml 的 category_colors 字段。修改后点击"保存配置"提交。</p>
+              <div class="color-add-row">
+                <input type="text" id="site-category-new" class="input" placeholder="输入分类名…" style="flex:1; max-width:220px;">
+                <button class="btn btn-ghost" onclick="addColorItem('category')">+ 添加</button>
+              </div>
+              <table class="table color-table">
+                <thead><tr><th>分类名</th><th>颜色</th><th>十六进制</th><th></th></tr></thead>
+                <tbody id="site-categories-list"></tbody>
+              </table>
+            </div>
+
+            <!-- 原始 YAML (默认折叠) -->
+            <div class="config-section" id="config-raw-section" style="display:none;">
+              <h3 class="settings-section-title">原始 YAML（高级）</h3>
+              <p class="form-hint">直接编辑 config.yml 原始内容。此处的修改会覆盖上方可视化表单。</p>
+              <textarea id="config-editor" class="config-editor" spellcheck="false"></textarea>
+            </div>
           </div>
         </div>
 

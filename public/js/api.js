@@ -86,19 +86,6 @@ async function saveConfig(content) {
   });
 }
 
-// ─── Site Config (colors) ───
-
-async function getSiteConfig() {
-  return request('/api/site-config');
-}
-
-async function saveSiteConfig(tags, categories) {
-  return request('/api/site-config', {
-    method: 'PUT',
-    body: JSON.stringify({ tags, categories }),
-  });
-}
-
 // ─── Search ───
 
 async function searchPosts(q) {
@@ -132,8 +119,6 @@ window.savePost = savePost;
 window.deletePost = deletePost;
 window.getConfig = getConfig;
 window.saveConfig = saveConfig;
-window.getSiteConfig = getSiteConfig;
-window.saveSiteConfig = saveSiteConfig;
 window.searchPosts = searchPosts;
 window.getAggregate = getAggregate;
 window.commitAll = commitAll;

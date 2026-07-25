@@ -497,10 +497,20 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 .config-editor:focus { border-color: var(--mono-text); }
 
 .config-section {
-  margin-top: 24px;
+  margin-bottom: 20px;
   background: var(--mono-surface);
   border: 1px solid var(--mono-border-light);
   padding: 20px;
+}
+
+.config-modified-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: var(--mono-warning);
+  border: 1px solid var(--mono-warning);
+  vertical-align: middle;
+  margin-right: 4px;
 }
 
 .color-add-row {

@@ -268,6 +268,7 @@ function bindEvents() {
 
   // Config save
   document.getElementById('save-config-btn').addEventListener('click', saveConfigChanges);
+  document.getElementById('toggle-raw-config-btn').addEventListener('click', toggleRawConfig);
 
   // Settings
   document.getElementById('settings-save-btn').addEventListener('click', saveSettings);
