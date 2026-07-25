@@ -529,6 +529,37 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
   padding: 6px 8px;
 }
 
+/* Inline inputs inside config table cells */
+.table-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  font-size: 13px;
+}
+
+.color-input {
+  width: 32px;
+  height: 28px;
+  border: 1px solid var(--mono-border-light);
+  cursor: pointer;
+  padding: 0;
+}
+
+/* Checkbox label alignment */
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-weight: 400;
+  color: var(--mono-text);
+}
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
 /* ─── Site Config ─── */
 .settings-form {
   max-width: 520px;

@@ -187,94 +187,233 @@
           <div id="config-loading" class="loading-spinner">加载中...</div>
 
           <div id="config-form-wrap" class="hidden">
-            <!-- 站点信息 -->
+            <!-- 站点信息 — title/description/author/language/favicon/url/keywords -->
             <div class="config-section">
               <h3 class="settings-section-title">站点信息</h3>
               <div class="form-row">
                 <div class="form-group flex-1">
                   <label class="form-label" for="cfg-title">标题</label>
-                  <input type="text" id="cfg-title" class="input" placeholder="博客标题" data-yaml-key="title">
+                  <input type="text" id="cfg-title" class="input" data-cfg-key="title">
                 </div>
                 <div class="form-group flex-1">
-                  <label class="form-label" for="cfg-subtitle">副标题</label>
-                  <input type="text" id="cfg-subtitle" class="input" placeholder="副标题" data-yaml-key="subtitle">
+                  <label class="form-label" for="cfg-author">作者</label>
+                  <input type="text" id="cfg-author" class="input" data-cfg-key="author">
                 </div>
               </div>
               <div class="form-group">
                 <label class="form-label" for="cfg-description">描述</label>
-                <textarea id="cfg-description" class="input" rows="2" placeholder="站点描述" data-yaml-key="description"></textarea>
+                <textarea id="cfg-description" class="input" rows="2" data-cfg-key="description"></textarea>
               </div>
-              <div class="form-row">
-                <div class="form-group flex-1">
-                  <label class="form-label" for="cfg-author">作者</label>
-                  <input type="text" id="cfg-author" class="input" placeholder="作者名" data-yaml-key="author">
-                </div>
-                <div class="form-group flex-1">
-                  <label class="form-label" for="cfg-keywords">关键词</label>
-                  <input type="text" id="cfg-keywords" class="input" placeholder="多个关键词用逗号分隔" data-yaml-key="keywords">
-                </div>
-              </div>
-            </div>
-
-            <!-- URL 设置 -->
-            <div class="config-section">
-              <h3 class="settings-section-title">URL 设置</h3>
-              <div class="form-row">
-                <div class="form-group flex-1">
-                  <label class="form-label" for="cfg-url">站点网址</label>
-                  <input type="text" id="cfg-url" class="input" placeholder="https://example.com" data-yaml-key="url">
-                </div>
-                <div class="form-group flex-1">
-                  <label class="form-label" for="cfg-root">根路径</label>
-                  <input type="text" id="cfg-root" class="input" placeholder="/" data-yaml-key="root">
-                </div>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="cfg-permalink">永久链接格式</label>
-                <input type="text" id="cfg-permalink" class="input" placeholder=":year/:month/:day/:title/" data-yaml-key="permalink">
-              </div>
-            </div>
-
-            <!-- 语言与时间 -->
-            <div class="config-section">
-              <h3 class="settings-section-title">语言与时间</h3>
               <div class="form-row">
                 <div class="form-group flex-1">
                   <label class="form-label" for="cfg-language">语言</label>
-                  <input type="text" id="cfg-language" class="input" placeholder="zh-CN" data-yaml-key="language">
+                  <input type="text" id="cfg-language" class="input" data-cfg-key="language">
                 </div>
                 <div class="form-group flex-1">
-                  <label class="form-label" for="cfg-timezone">时区</label>
-                  <input type="text" id="cfg-timezone" class="input" placeholder="Asia/Shanghai" data-yaml-key="timezone">
+                  <label class="form-label" for="cfg-favicon">Favicon URL</label>
+                  <input type="text" id="cfg-favicon" class="input" data-cfg-key="favicon">
                 </div>
               </div>
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label class="form-label" for="cfg-url">站点网址</label>
+                  <input type="url" id="cfg-url" class="input" data-cfg-key="url" placeholder="https://blog.shanshui.site">
+                </div>
+                <div class="form-group flex-1">
+                  <label class="form-label" for="cfg-keywords">SEO 关键词</label>
+                  <input type="text" id="cfg-keywords" class="input" data-cfg-key="keywords" placeholder="逗号分隔">
+                </div>
+              </div>
+            </div>
+
+            <!-- 公告栏 — notice -->
+            <div class="config-section">
+              <h3 class="settings-section-title">公告栏</h3>
+              <div class="form-group">
+                <label class="form-label" for="cfg-notice-message">公告内容</label>
+                <input type="text" id="cfg-notice-message" class="input" data-cfg-parent="notice" data-cfg-child="message">
+              </div>
+              <div class="form-group" style="margin-top:8px;">
+                <label class="form-label checkbox-label">
+                  <input type="checkbox" id="cfg-notice-dismissible" data-cfg-parent="notice" data-cfg-child="dismissible" data-cfg-type="bool">
+                  <span>允许访客关闭公告</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- 评论 — giscus -->
+            <div class="config-section">
+              <h3 class="settings-section-title">评论系统 (Giscus)</h3>
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label class="form-label" for="cfg-giscus-repo">仓库</label>
+                  <input type="text" id="cfg-giscus-repo" class="input" data-cfg-parent="giscus" data-cfg-child="repo" placeholder="user/repo">
+                </div>
+                <div class="form-group flex-1">
+                  <label class="form-label" for="cfg-giscus-repoId">Repo ID</label>
+                  <input type="text" id="cfg-giscus-repoId" class="input" data-cfg-parent="giscus" data-cfg-child="repoId">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label class="form-label" for="cfg-giscus-category">分类</label>
+                  <input type="text" id="cfg-giscus-category" class="input" data-cfg-parent="giscus" data-cfg-child="category">
+                </div>
+                <div class="form-group flex-1">
+                  <label class="form-label" for="cfg-giscus-categoryId">Category ID</label>
+                  <input type="text" id="cfg-giscus-categoryId" class="input" data-cfg-parent="giscus" data-cfg-child="categoryId">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label class="form-label" for="cfg-giscus-mapping">Mapping</label>
+                  <input type="text" id="cfg-giscus-mapping" class="input" data-cfg-parent="giscus" data-cfg-child="mapping">
+                </div>
+                <div class="form-group flex-1">
+                  <label class="form-label" for="cfg-giscus-theme">主题</label>
+                  <input type="text" id="cfg-giscus-theme" class="input" data-cfg-parent="giscus" data-cfg-child="theme">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group" style="width:25%;">
+                  <label class="form-label" for="cfg-giscus-strict">Strict</label>
+                  <input type="text" id="cfg-giscus-strict" class="input" data-cfg-parent="giscus" data-cfg-child="strict">
+                </div>
+                <div class="form-group" style="width:25%;">
+                  <label class="form-label" for="cfg-giscus-reactionsEnabled">Reactions</label>
+                  <input type="text" id="cfg-giscus-reactionsEnabled" class="input" data-cfg-parent="giscus" data-cfg-child="reactionsEnabled">
+                </div>
+                <div class="form-group" style="width:25%;">
+                  <label class="form-label" for="cfg-giscus-emitMetadata">Emit Meta</label>
+                  <input type="text" id="cfg-giscus-emitMetadata" class="input" data-cfg-parent="giscus" data-cfg-child="emitMetadata">
+                </div>
+                <div class="form-group" style="width:25%;">
+                  <label class="form-label" for="cfg-giscus-inputPosition">输入位置</label>
+                  <input type="text" id="cfg-giscus-inputPosition" class="input" data-cfg-parent="giscus" data-cfg-child="inputPosition">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label class="form-label" for="cfg-giscus-lang">语言</label>
+                  <input type="text" id="cfg-giscus-lang" class="input" data-cfg-parent="giscus" data-cfg-child="lang">
+                </div>
+              </div>
+            </div>
+
+            <!-- 社交链接 — socials -->
+            <div class="config-section">
+              <h3 class="settings-section-title">社交链接</h3>
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label class="form-label" for="cfg-socials-github">GitHub</label>
+                  <input type="url" id="cfg-socials-github" class="input" data-cfg-parent="socials" data-cfg-child="github">
+                </div>
+                <div class="form-group flex-1">
+                  <label class="form-label" for="cfg-socials-twitter">Twitter</label>
+                  <input type="url" id="cfg-socials-twitter" class="input" data-cfg-parent="socials" data-cfg-child="twitter">
+                </div>
+              </div>
+            </div>
+
+            <!-- 导航菜单 — navigation -->
+            <div class="config-section">
+              <h3 class="settings-section-title">导航菜单</h3>
+              <p class="form-hint">管理顶部导航栏的链接。修改后点击"保存配置"提交。</p>
+              <div class="color-add-row">
+                <input type="text" id="nav-new-label" class="input" placeholder="名称" style="flex:1; max-width:140px;">
+                <input type="text" id="nav-new-href" class="input" placeholder="链接" style="flex:1; max-width:240px;">
+                <button class="btn btn-ghost" onclick="addNavItem()">+ 添加</button>
+              </div>
+              <table class="table color-table">
+                <thead><tr><th>名称</th><th>链接</th><th></th></tr></thead>
+                <tbody id="site-nav-list"></tbody>
+              </table>
+            </div>
+
+            <!-- 备案信息 -->
+            <div class="config-section">
+              <h3 class="settings-section-title">备案信息</h3>
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label class="form-label" for="cfg-icp">ICP 备案号</label>
+                  <input type="text" id="cfg-icp" class="input" data-cfg-key="icp" placeholder="川ICP备XXXXXXXX号">
+                </div>
+                <div class="form-group flex-1">
+                  <label class="form-label" for="cfg-moe">萌备号</label>
+                  <input type="text" id="cfg-moe" class="input" data-cfg-key="moe" placeholder="萌ICP备20240009号">
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="cfg-copyright">版权声明</label>
+                <input type="text" id="cfg-copyright" class="input" data-cfg-key="copyright" placeholder="&amp;copy; 2025-{year} {title}">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="cfg-footerLinks">页脚链接</label>
+                <textarea id="cfg-footerLinks" class="input" rows="2" data-cfg-key="footerLinks" placeholder="HTML 片段"></textarea>
+              </div>
+              <div class="form-group" style="margin-top:8px;">
+                <label class="form-label checkbox-label">
+                  <input type="checkbox" id="cfg-showBuildInfo" data-cfg-key="showBuildInfo" data-cfg-type="bool">
+                  <span>显示构建信息</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- 分类 Slug 映射 -->
+            <div class="config-section">
+              <h3 class="settings-section-title">分类 Slug 映射</h3>
+              <p class="form-hint">将中文分类名映射到 URL 友好的 ASCII Slug。</p>
+              <div class="color-add-row">
+                <input type="text" id="slug-cat-name" class="input" placeholder="分类名" style="flex:1; max-width:150px;">
+                <input type="text" id="slug-cat-slug" class="input" placeholder="slug" style="flex:1; max-width:150px;">
+                <button class="btn btn-ghost" onclick="addSlugItem('categorySlugs')">+ 添加</button>
+              </div>
+              <table class="table color-table">
+                <thead><tr><th>分类名</th><th>Slug</th><th></th></tr></thead>
+                <tbody id="slug-category-list"></tbody>
+              </table>
+            </div>
+
+            <!-- 标签 Slug 映射 -->
+            <div class="config-section">
+              <h3 class="settings-section-title">标签 Slug 映射</h3>
+              <p class="form-hint">将中文标签名映射到 URL 友好的 ASCII Slug。</p>
+              <div class="color-add-row">
+                <input type="text" id="slug-tag-name" class="input" placeholder="标签名" style="flex:1; max-width:150px;">
+                <input type="text" id="slug-tag-slug" class="input" placeholder="slug" style="flex:1; max-width:150px;">
+                <button class="btn btn-ghost" onclick="addSlugItem('tagSlugs')">+ 添加</button>
+              </div>
+              <table class="table color-table">
+                <thead><tr><th>标签名</th><th>Slug</th><th></th></tr></thead>
+                <tbody id="slug-tag-list"></tbody>
+              </table>
             </div>
 
             <!-- 标签颜色 -->
             <div class="config-section">
               <h3 class="settings-section-title">标签颜色</h3>
-              <p class="form-hint">设置标签的显示颜色，存储于 config.yml 的 tag_colors 字段。修改后点击"保存配置"提交。</p>
+              <p class="form-hint">设置标签显示颜色（tagColors）。</p>
               <div class="color-add-row">
-                <input type="text" id="site-tag-new" class="input" placeholder="输入标签名…" style="flex:1; max-width:220px;">
-                <button class="btn btn-ghost" onclick="addColorItem('tag')">+ 添加</button>
+                <input type="text" id="color-tag-name" class="input" placeholder="标签名" style="flex:1; max-width:180px;">
+                <button class="btn btn-ghost" onclick="addMapItem('tagColors')">+ 添加</button>
               </div>
               <table class="table color-table">
-                <thead><tr><th>标签名</th><th>颜色</th><th>十六进制</th><th></th></tr></thead>
-                <tbody id="site-tags-list"></tbody>
+                <thead><tr><th>标签名</th><th>颜色</th><th>Hex</th><th></th></tr></thead>
+                <tbody id="map-tagColors-list"></tbody>
               </table>
             </div>
 
             <!-- 分类颜色 -->
             <div class="config-section">
               <h3 class="settings-section-title">分类颜色</h3>
-              <p class="form-hint">设置分类的显示颜色，存储于 config.yml 的 category_colors 字段。修改后点击"保存配置"提交。</p>
+              <p class="form-hint">设置分类显示颜色（categoryColors）。</p>
               <div class="color-add-row">
-                <input type="text" id="site-category-new" class="input" placeholder="输入分类名…" style="flex:1; max-width:220px;">
-                <button class="btn btn-ghost" onclick="addColorItem('category')">+ 添加</button>
+                <input type="text" id="color-cat-name" class="input" placeholder="分类名" style="flex:1; max-width:180px;">
+                <button class="btn btn-ghost" onclick="addMapItem('categoryColors')">+ 添加</button>
               </div>
               <table class="table color-table">
-                <thead><tr><th>分类名</th><th>颜色</th><th>十六进制</th><th></th></tr></thead>
-                <tbody id="site-categories-list"></tbody>
+                <thead><tr><th>分类名</th><th>颜色</th><th>Hex</th><th></th></tr></thead>
+                <tbody id="map-categoryColors-list"></tbody>
               </table>
             </div>
 
