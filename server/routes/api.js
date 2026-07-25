@@ -274,15 +274,14 @@ router.delete('/posts/:slug', requireAuth, requireRepo, async (req, res) => {
 
 // ─── Config Management ──────────────────────────────────────
 
-// GET /api/config — read config.yml
+// GET /api/config — read config.yml (always from repo root, not content root)
 router.get('/config', requireAuth, requireRepo, async (req, res) => {
   try {
     const repo = getRepo(req);
-    const root = getRoot(req);
 
-    const content = await repo.readFile(root, 'config.yml');
+    const content = await repo.readFile('', 'config.yml');
     if (!content) {
-      console.log('[Config] config.yml not found, returning empty defaults');
+      console.log('[Config] config.yml not found at repo root');
       return res.json({ raw: '', parsed: null, notFound: true });
     }
 
@@ -301,18 +300,17 @@ router.get('/config', requireAuth, requireRepo, async (req, res) => {
   }
 });
 
-// PUT /api/config — save config.yml
+// PUT /api/config — save config.yml (always to repo root, not content root)
 router.put('/config', requireAuth, requireRepo, async (req, res) => {
   try {
     const repo = getRepo(req);
-    const root = getRoot(req);
     const { content } = req.body;
 
     if (!content) {
       return res.status(400).json({ error: 'No content provided' });
     }
 
-    await repo.writeFile(root, 'config.yml', content);
+    await repo.writeFile('', 'config.yml', content);
 
     res.json({ success: true });
   } catch (err) {
