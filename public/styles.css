@@ -479,6 +479,45 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 .color-input::-webkit-color-swatch-wrapper { padding: 0; }
 .color-input::-webkit-color-swatch { border: none; }
 
+/* ─── Notice Banner ─── */
+.notice-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  background: #fff7e6;
+  border: 1px solid #ffd591;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: var(--mono-text);
+}
+.notice-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.notice-icon {
+  flex-shrink: 0;
+  color: #fa8c16;
+}
+.notice-text {
+  line-height: 1.4;
+}
+.notice-dismiss {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--mono-muted);
+  padding: 0 0 0 12px;
+}
+.notice-dismiss:hover {
+  color: var(--mono-text);
+}
+
 /* ─── Config Editor ─── */
 .config-editor {
   width: 100%;

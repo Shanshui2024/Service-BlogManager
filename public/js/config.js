@@ -47,7 +47,7 @@ function yamlGetMap(raw, key) {
   const result = {};
   const lines = m[1].split('\n');
   for (const line of lines) {
-    const kv = line.match(/^  (\\S[^:]*):\\s*(.+)$/);
+    const kv = line.match(/^  (\S[^:]*):\s*(.+)$/);
     if (kv) result[kv[1].trim()] = kv[2].trim();
   }
   return result;

@@ -317,6 +317,10 @@ async function loadTags() {
   try {
     const data = await getAggregate();
     state.tags = data.tags || [];
+
+    // Load config colors for tags
+    await loadTagCategoryColors();
+
     renderTags();
   } catch (err) {
     document.getElementById('tags-list').innerHTML = `<p class="text-muted">加载失败: ${err.message}</p>`;
@@ -329,16 +333,23 @@ function renderTags() {
     container.innerHTML = '<div class="empty-state"><p>暂无标签</p></div>';
     return;
   }
+  const colors = state.tagColors || {};
   container.innerHTML = '';
   for (const tag of state.tags) {
     const card = document.createElement('div');
     card.className = 'tag-card';
 
+    const color = colors[tag.name] || '#000000';
+
     const colorPicker = document.createElement('input');
     colorPicker.type = 'color';
     colorPicker.className = 'color-input';
-    colorPicker.value = '#000000';
+    colorPicker.value = color;
     colorPicker.title = '标签颜色';
+    colorPicker.addEventListener('input', async (e) => {
+      state.tagColors[tag.name] = e.target.value;
+      await saveConfigColors();
+    });
     card.appendChild(colorPicker);
 
     const info = document.createElement('div');
@@ -356,6 +367,10 @@ async function loadCategories() {
   try {
     const data = await getAggregate();
     state.categories = data.categories || [];
+
+    // Load config colors for categories
+    await loadTagCategoryColors();
+
     renderCategories();
   } catch (err) {
     document.getElementById('categories-list').innerHTML = `<p class="text-muted">加载失败: ${err.message}</p>`;
@@ -368,15 +383,23 @@ function renderCategories() {
     container.innerHTML = '<div class="empty-state"><p>暂无分类</p></div>';
     return;
   }
+  const colors = state.categoryColors || {};
   container.innerHTML = '';
   for (const cat of state.categories) {
     const card = document.createElement('div');
     card.className = 'tag-card';
 
+    const color = colors[cat.name] || '#000000';
+
     const colorPicker = document.createElement('input');
     colorPicker.type = 'color';
     colorPicker.className = 'color-input';
-    colorPicker.value = '#000000';
+    colorPicker.value = color;
+    colorPicker.title = '分类颜色';
+    colorPicker.addEventListener('input', async (e) => {
+      state.categoryColors[cat.name] = e.target.value;
+      await saveConfigColors();
+    });
     card.appendChild(colorPicker);
 
     const info = document.createElement('div');
@@ -387,6 +410,77 @@ function renderCategories() {
     container.appendChild(card);
   }
 }
+
+// ─── Tag/Category Config Colors ───
+
+async function loadTagCategoryColors() {
+  try {
+    const data = await getConfig();
+    if (data && data.raw) {
+      const raw = data.raw;
+      state.configRaw = raw;
+      state.tagColors = yamlGetMap(raw, 'tagColors');
+      state.categoryColors = yamlGetMap(raw, 'categoryColors');
+      // Also load notice
+      const noticeMap = yamlGetMap(raw, 'notice');
+      state.noticeMessage = noticeMap.message || '';
+      state.noticeDismissible = noticeMap.dismissible === 'true';
+    }
+  } catch { /* ignore - fallback to empty */ }
+}
+
+async function saveConfigColors() {
+  try {
+    let raw = state.configRaw;
+    if (!raw) {
+      // Load current config first
+      const data = await getConfig();
+      raw = data.raw || '';
+    }
+    // Update tagColors
+    raw = yamlSetMap(raw, 'tagColors', state.tagColors);
+    // Update categoryColors
+    raw = yamlSetMap(raw, 'categoryColors', state.categoryColors);
+    // Save - send raw YAML string
+    await saveConfig(raw);
+    state.configRaw = raw;
+    toast('颜色已保存', 'success');
+  } catch (err) {
+    toast(`保存颜色失败: ${err.message}`, 'error');
+  }
+}
+
+// ─── Notice ───
+
+function loadNotice() {
+  loadTagCategoryColors().then(() => renderNotice());
+}
+
+function renderNotice() {
+  const container = document.getElementById('notice-banner');
+  if (!container) return;
+  const msg = state.noticeMessage;
+  if (!msg) {
+    container.classList.add('hidden');
+    return;
+  }
+  container.classList.remove('hidden');
+  const textEl = container.querySelector('.notice-text');
+  if (textEl) textEl.textContent = msg;
+
+  const dismissBtn = container.querySelector('.notice-dismiss');
+  if (dismissBtn) {
+    if (state.noticeDismissible) {
+      dismissBtn.classList.remove('hidden');
+    } else {
+      dismissBtn.classList.add('hidden');
+    }
+  }
+}
+
+window.dismissNotice = function () {
+  document.getElementById('notice-banner').classList.add('hidden');
+};
 
 // ─── Commit Indicator ───
 
@@ -516,3 +610,6 @@ window.confirmCommit = confirmCommit;
 window.setupTagInput = setupTagInput;
 window.updateSuggestions = updateSuggestions;
 window.deletePostConfirm = deletePostConfirm;
+window.loadNotice = loadNotice;
+window.renderNotice = renderNotice;
+window.saveConfigColors = saveConfigColors;
