@@ -77,7 +77,6 @@ function updateUI() {
   navigateTo('posts');
   loadPosts();
   updateSuggestions();
-  loadNotice();
 }
 
 function updateRepoIndicator() {
@@ -134,7 +133,6 @@ function navigateTo(view) {
     case 'posts':
       loadPosts();
       updateSuggestions();
-      loadNotice();
       break;
     case 'tags':
       loadTags();

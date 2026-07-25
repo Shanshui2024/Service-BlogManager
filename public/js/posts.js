@@ -421,10 +421,6 @@ async function loadTagCategoryColors() {
       state.configRaw = raw;
       state.tagColors = yamlGetMap(raw, 'tagColors');
       state.categoryColors = yamlGetMap(raw, 'categoryColors');
-      // Also load notice
-      const noticeMap = yamlGetMap(raw, 'notice');
-      state.noticeMessage = noticeMap.message || '';
-      state.noticeDismissible = noticeMap.dismissible === 'true';
     }
   } catch { /* ignore - fallback to empty */ }
 }
@@ -449,38 +445,6 @@ async function saveConfigColors() {
     toast(`保存颜色失败: ${err.message}`, 'error');
   }
 }
-
-// ─── Notice ───
-
-function loadNotice() {
-  loadTagCategoryColors().then(() => renderNotice());
-}
-
-function renderNotice() {
-  const container = document.getElementById('notice-banner');
-  if (!container) return;
-  const msg = state.noticeMessage;
-  if (!msg) {
-    container.classList.add('hidden');
-    return;
-  }
-  container.classList.remove('hidden');
-  const textEl = container.querySelector('.notice-text');
-  if (textEl) textEl.textContent = msg;
-
-  const dismissBtn = container.querySelector('.notice-dismiss');
-  if (dismissBtn) {
-    if (state.noticeDismissible) {
-      dismissBtn.classList.remove('hidden');
-    } else {
-      dismissBtn.classList.add('hidden');
-    }
-  }
-}
-
-window.dismissNotice = function () {
-  document.getElementById('notice-banner').classList.add('hidden');
-};
 
 // ─── Commit Indicator ───
 
@@ -610,6 +574,4 @@ window.confirmCommit = confirmCommit;
 window.setupTagInput = setupTagInput;
 window.updateSuggestions = updateSuggestions;
 window.deletePostConfirm = deletePostConfirm;
-window.loadNotice = loadNotice;
-window.renderNotice = renderNotice;
 window.saveConfigColors = saveConfigColors;

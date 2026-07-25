@@ -19,8 +19,6 @@ const state = {
   categories: [],
   tagColors: {},
   categoryColors: {},
-  noticeMessage: '',
-  noticeDismissible: false,
   configRaw: '',
   configParsed: null,
   modifiedFiles: [],
