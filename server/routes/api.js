@@ -44,17 +44,27 @@ function requireRepo(req, res, next) {
 
 router.post('/repo/setup', requireAuth, async (req, res) => {
   try {
-    const { token, owner, repo: repoName, branch = 'main', root = '' } = req.body;
+    const { token, useOAuth, owner, repo: repoName, branch = 'main', root = '' } = req.body;
 
-    if (!token || !owner || !repoName) {
-      return res.status(400).json({ error: 'token, owner, and repo are required' });
+    // Use OAuth token from session or manual PAT
+    let gitToken = token;
+    if (useOAuth) {
+      if (!req.session.githubToken) {
+        return res.status(400).json({ error: 'GitHub OAuth not connected. Please connect GitHub first.' });
+      }
+      gitToken = req.session.githubToken;
+    }
+
+    if (!gitToken || !owner || !repoName) {
+      return res.status(400).json({ error: 'token (or GitHub OAuth), owner, and repo are required' });
     }
 
     const repo = getRepo(req);
-    const result = await repo.setup(token, owner, repoName, branch);
+    const result = await repo.setup(gitToken, owner, repoName, branch);
 
     req.session.repoConfig = {
-      token,
+      token: useOAuth ? null : gitToken, // null when OAuth, token stored in session
+      useOAuth: !!useOAuth,
       owner,
       repo: repoName,
       branch,

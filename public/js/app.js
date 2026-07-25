@@ -5,9 +5,12 @@ const App = {
     bindEvents();
     setupTagInput();
 
-    // Check URL for error
+    // Check URL for error / github callback
     const params = new URLSearchParams(window.location.search);
     const error = params.get('error');
+    const tab = params.get('tab');
+    const github = params.get('github');
+
     if (error) {
       document.getElementById('login-error').textContent = decodeURIComponent(error);
     }
@@ -16,7 +19,22 @@ const App = {
     const authed = await checkAuth();
     if (authed) {
       updateUI();
+
+      // Check GitHub OAuth status
+      await checkGitHubStatus();
+
       await initRepo();
+
+      // Handle GitHub callback — go to settings
+      if (github === 'connected') {
+        navigateTo('settings');
+        toast('GitHub 已连接!', 'success');
+        // Clean URL
+        history.replaceState(null, '', '/');
+      } else if (tab === 'settings') {
+        navigateTo('settings');
+        history.replaceState(null, '', '/');
+      }
     } else {
       showLogin();
     }
@@ -137,6 +155,9 @@ function loadSettings() {
   document.getElementById('setting-repo').value = state.repoName || getStored(REPO_KEY, '').split('/')[1] || '';
   document.getElementById('setting-branch').value = state.repoBranch || getBranch();
   document.getElementById('setting-root').value = state.repoRoot || getRoot();
+
+  // Update GitHub OAuth UI
+  updateGitHubOAuthUI();
 }
 
 async function saveSettings() {
@@ -146,13 +167,20 @@ async function saveSettings() {
   const branch = document.getElementById('setting-branch').value.trim() || 'main';
   const root = document.getElementById('setting-root').value.trim();
 
-  if (!token || !owner || !repo) {
-    toast('请填写 Token、仓库所有者和仓库名称', 'warning');
+  if (!owner || !repo) {
+    toast('请填写仓库所有者和仓库名称', 'warning');
+    return;
+  }
+
+  // Use GitHub OAuth token if connected, otherwise require manual PAT
+  const useOAuth = githubConnected;
+  if (!useOAuth && !token) {
+    toast('请先连接 GitHub 授权，或手动输入 Token', 'warning');
     return;
   }
 
   try {
-    const result = await setupRepo(token, owner, repo, branch, root);
+    const result = await setupRepo(token, owner, repo, branch, root, useOAuth);
     saveRepoSettings(owner, repo, branch, root);
     state.repoConfigured = true;
     updateRepoIndicator();
@@ -245,6 +273,10 @@ function bindEvents() {
   document.getElementById('settings-save-btn').addEventListener('click', saveSettings);
   document.getElementById('settings-disconnect-btn').addEventListener('click', disconnectRepo);
 
+  // GitHub OAuth
+  document.getElementById('github-connect-btn').addEventListener('click', connectGitHub);
+  document.getElementById('github-disconnect-btn').addEventListener('click', disconnectGitHubOAuth);
+
   // Commit
   document.getElementById('commit-btn').addEventListener('click', openCommitModal);
   document.getElementById('commit-modal-close').addEventListener('click', closeCommitModal);
@@ -294,9 +326,70 @@ function bindEvents() {
   });
 }
 
+// ─── GitHub OAuth ───
+
+async function checkGitHubStatus() {
+  try {
+    const res = await getGitHubStatus();
+    githubConnected = res.connected;
+    githubUser = res.user;
+  } catch {
+    githubConnected = false;
+    githubUser = null;
+  }
+}
+
+function updateGitHubOAuthUI() {
+  const label = document.getElementById('github-oauth-label');
+  const connectBtn = document.getElementById('github-connect-btn');
+  const disconnectBtn = document.getElementById('github-disconnect-btn');
+  const tokenInput = document.getElementById('setting-token');
+  const tokenGroup = tokenInput.closest('.form-group') || tokenInput.parentElement;
+
+  if (githubConnected) {
+    label.innerHTML = `<span class="status-dot connected"></span>已连接 — <strong>${githubUser || 'GitHub'}</strong>`;
+    label.classList.add('oauth-connected');
+    connectBtn.classList.add('hidden');
+    disconnectBtn.classList.remove('hidden');
+    tokenInput.value = '';
+    tokenInput.placeholder = '已通过 OAuth 授权，无需手动输入';
+    tokenInput.disabled = true;
+  } else {
+    label.innerHTML = `尚未连接`;
+    label.classList.remove('oauth-connected');
+    connectBtn.classList.remove('hidden');
+    disconnectBtn.classList.add('hidden');
+    tokenInput.disabled = false;
+    tokenInput.placeholder = 'ghp_...';
+  }
+}
+
+async function connectGitHub() {
+  try {
+    const res = await getGitHubAuthURL();
+    window.location.href = res.url;
+  } catch (err) {
+    toast(`连接失败: ${err.message}`, 'error');
+  }
+}
+
+async function disconnectGitHubOAuth() {
+  if (!confirm('确定断开 GitHub OAuth 连接?')) return;
+  try {
+    await disconnectGitHub();
+    githubConnected = false;
+    githubUser = null;
+    updateGitHubOAuthUI();
+    toast('已断开 GitHub 连接', 'info');
+  } catch (err) {
+    toast(`操作失败: ${err.message}`, 'error');
+  }
+}
+
 // ─── Boot ───
 
 document.addEventListener('DOMContentLoaded', () => App.boot());
 
 window.App = App;
 window.navigateTo = navigateTo;
+window.connectGitHub = connectGitHub;

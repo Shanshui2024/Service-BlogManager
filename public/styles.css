@@ -497,6 +497,63 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
   padding: 24px;
 }
 
+.settings-section {
+  margin-bottom: 4px;
+}
+
+.settings-section-title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--mono-muted);
+  margin: 0 0 12px 0;
+}
+
+.settings-divider {
+  border: none;
+  border-top: 1px solid var(--mono-divider);
+  margin: 20px 0;
+}
+
+/* GitHub OAuth Status */
+.github-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--mono-code-bg);
+  border: 1px solid var(--mono-border-light);
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--mono-secondary);
+}
+
+.github-status.oauth-connected {
+  color: var(--mono-success);
+  background: var(--mono-success-bg);
+  border-color: var(--mono-success);
+}
+
+#github-oauth-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mono-faint);
+}
+
+.status-dot.connected {
+  background: var(--mono-success);
+}
+
 /* ─── Modal ─── */
 .modal-overlay {
   position: fixed;

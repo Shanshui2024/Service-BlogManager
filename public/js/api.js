@@ -22,15 +22,32 @@ async function request(url, options = {}) {
 
 // ─── Repo ───
 
-async function setupRepo(token, owner, repo, branch, root) {
+async function setupRepo(token, owner, repo, branch, root, useOAuth = false) {
+  const body = useOAuth
+    ? { useOAuth: true, owner, repo, branch, root }
+    : { token, owner, repo, branch, root };
   return request('/api/repo/setup', {
     method: 'POST',
-    body: JSON.stringify({ token, owner, repo, branch, root }),
+    body: JSON.stringify(body),
   });
 }
 
 async function getRepoStatus() {
   return request('/api/repo/status');
+}
+
+// ─── GitHub OAuth ───
+
+async function getGitHubAuthURL() {
+  return request('/api/auth/github/login');
+}
+
+async function getGitHubStatus() {
+  return request('/api/auth/github/status');
+}
+
+async function disconnectGitHub() {
+  return request('/api/auth/github/disconnect', { method: 'POST' });
 }
 
 // ─── Posts ───
@@ -93,6 +110,9 @@ async function commitAll(message) {
 window.request = request;
 window.setupRepo = setupRepo;
 window.getRepoStatus = getRepoStatus;
+window.getGitHubAuthURL = getGitHubAuthURL;
+window.getGitHubStatus = getGitHubStatus;
+window.disconnectGitHub = disconnectGitHub;
 window.getPosts = getPosts;
 window.getPost = getPost;
 window.savePost = savePost;
