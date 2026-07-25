@@ -1,5 +1,12 @@
 // posts.js — Post management
 
+// ─── Utility ───
+
+function safeSetText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
 // ─── Post List ───
 
 async function loadPosts() {
@@ -165,7 +172,7 @@ async function openEditor(slug) {
     const title = '新文章';
     const now = nowInput();
     state.selectedPost = null;
-    document.getElementById('editor-title-text').textContent = '新建文章';
+    safeSetText('editor-title', '新建文章');
     document.getElementById('edit-title').value = title;
     document.getElementById('edit-slug').value = slugifyTitle(title);
     document.getElementById('edit-date').value = now;
@@ -185,20 +192,21 @@ async function openEditor(slug) {
 }
 
 function fillEditor(fm, body, slug, format) {
-  document.getElementById('editor-title-text').textContent = '编辑文章';
-  document.getElementById('edit-title').value = fm.title || '';
+  const safeFM = fm || {};
+  safeSetText('editor-title', '编辑文章');
+  document.getElementById('edit-title').value = safeFM.title || '';
   document.getElementById('edit-slug').value = slug || '';
-  document.getElementById('edit-date').value = dateToInput(fm.date) || nowInput();
-  document.getElementById('edit-category').value = fm.category || '';
-  document.getElementById('edit-excerpt').value = fm.excerpt || '';
-  document.getElementById('edit-draft').checked = fm.draft !== false;
-  document.getElementById('edit-pinned').checked = !!fm.pinned;
+  document.getElementById('edit-date').value = dateToInput(safeFM.date) || nowInput();
+  document.getElementById('edit-category').value = safeFM.category || '';
+  document.getElementById('edit-excerpt').value = safeFM.excerpt || '';
+  document.getElementById('edit-draft').checked = safeFM.draft !== false;
+  document.getElementById('edit-pinned').checked = !!safeFM.pinned;
   document.getElementById('edit-body').value = body || '';
   document.getElementById('editor-delete').classList.remove('hidden');
 
   // Tags
-  const tags = Array.isArray(fm.tags) ? fm.tags
-    : typeof fm.tags === 'string' ? fm.tags.split(',').map(t => t.trim()).filter(Boolean)
+  const tags = Array.isArray(safeFM.tags) ? safeFM.tags
+    : typeof safeFM.tags === 'string' ? safeFM.tags.split(',').map(t => t.trim()).filter(Boolean)
     : [];
   state.editorTags = [...tags];
   renderEditorTags();
