@@ -237,15 +237,15 @@ function renderConfigForm() {
 
   // Nested: weather
   const weEn = document.getElementById('cfg-weather-enabled');
-  const weKey = document.getElementById('cfg-weather-key');
+  const weApi = document.getElementById('cfg-weather-apiBase');
   const weCity = document.getElementById('cfg-weather-city');
   if (weEn) {
     weEn.checked = p.weather ? String(p.weather.enabled).toLowerCase() === 'true' : false;
     bindField(weEn);
   }
-  if (weKey) {
-    weKey.value = (p.weather && p.weather.key) || '';
-    bindField(weKey);
+  if (weApi) {
+    weApi.value = (p.weather && p.weather.apiBase) || '';
+    bindField(weApi);
   }
   if (weCity) {
     weCity.value = (p.weather && p.weather.city) || '';
@@ -659,7 +659,7 @@ function toggleRawConfig() {
         const wE = document.getElementById('cfg-weather-enabled');
         if (wE && p.weather.enabled !== undefined)
           wE.checked = String(p.weather.enabled).toLowerCase() === 'true';
-        safeSetVal('cfg-weather-key', p.weather.key || '');
+        safeSetVal('cfg-weather-apiBase', p.weather.apiBase || '');
         safeSetVal('cfg-weather-city', p.weather.city || '');
       }
       if (p.latestComments) {

@@ -404,8 +404,8 @@
 
             <!-- 天气 -->
             <div class="config-section">
-              <h3 class="settings-section-title">天气组件 <span class="badge">高德</span></h3>
-              <p class="form-hint">使用高德天气 API 在首页右侧栏显示实时天气。</p>
+              <h3 class="settings-section-title">天气组件 <span class="badge">远程服务</span></h3>
+              <p class="form-hint">天气数据由独立的 Service-API 提供（api.shanshui.site/weather）。高德 Key 已托管在服务端环境变量，无需在此填写。</p>
               <div class="form-group" style="margin-top:8px;">
                 <label class="form-label checkbox-label">
                   <input type="checkbox" id="cfg-weather-enabled" data-cfg-parent="weather" data-cfg-child="enabled" data-cfg-type="bool">
@@ -413,8 +413,9 @@
                 </label>
               </div>
               <div class="form-group">
-                <label class="form-label">高德 API Key（Web 服务）</label>
-                <input type="text" class="input" id="cfg-weather-key" data-cfg-parent="weather" data-cfg-child="key" placeholder="填写你的 Web 服务 Key">
+                <label class="form-label">天气服务地址（apiBase，可选）</label>
+                <input type="text" class="input" id="cfg-weather-apiBase" data-cfg-parent="weather" data-cfg-child="apiBase" placeholder="https://api.shanshui.site/weather">
+                <p class="form-hint">留空则使用默认地址 https://api.shanshui.site/weather，也可通过环境变量 NEXT_PUBLIC_WEATHER_API_BASE 覆盖。</p>
               </div>
               <div class="form-group">
                 <label class="form-label">城市编码 adcode（可选，留空自动定位）</label>
